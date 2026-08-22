@@ -1,0 +1,7 @@
+interface:
+  display_name: "MediaForge"
+  short_description: "Safe, structured media processing for AI agents"
+  default_prompt: "Use $mediaforge to inspect this media file, plan a safe transformation, execute it, and verify the result."
+
+policy:
+  allow_implicit_invocation: true

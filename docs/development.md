@@ -38,7 +38,11 @@ progress channel, and structured verification failures. It requires both
 
 The script also creates MP4, MKV, MOV, and WebM fixtures, checks subtitle
 conversion, exercises both human and Agent progress channels, and verifies
-output-parent safety.
+output-parent safety. PRD release gates additionally cover H.264/AAC remux,
+4K-to-1080p resize, MP3/AAC/FLAC/WAV extraction, source immutability, and
+verification failures for corruption, duration drift, and missing streams. It
+also exercises recursive batch discovery, Tool aliases, and the Raw FFmpeg
+dry-run escape hatch.
 
 ## Configuration during development
 

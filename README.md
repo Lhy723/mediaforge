@@ -42,7 +42,7 @@ media convert input.mkv --to mp4 --json
 media verify input.mkv output.mp4 --json
 ```
 
-All transformation commands accept `--dry-run`. JSON is emitted only on stdout; FFmpeg diagnostics stay on stderr and can be enabled with `--verbose` or `--debug`. Long-running transformations support `--progress`: human CLI mode prints readable progress text, while `--json`/Tool mode emits progress NDJSON on stderr without breaking the one-response JSON contract.
+All transformation commands accept `--dry-run`. JSON is emitted only on stdout; FFmpeg diagnostics stay on stderr and can be enabled with `--verbose` or `--debug`. Long-running transformations support `--progress`: human CLI mode prints percentage, elapsed time, estimated remaining time, and speed, while `--json`/Tool mode emits the same measurements as progress NDJSON on stderr without breaking the one-response JSON contract.
 
 ## Operations
 
@@ -68,7 +68,11 @@ media batch './videos/*.mov' --convert mp4 --json
 
 Clipping uses stream copy when a zero-offset MP4 clip is compatible with the source streams and uses precise re-encoding when the requested boundary requires it. Audio extraction also copies a compatible source codec (for example AAC to M4A) before falling back to a transcode.
 
+Container-aware defaults select H.264/AAC for MP4 and MOV, and VP9/Opus for WebM. Explicit codec/container combinations are validated before FFmpeg starts.
+
 Target-size compression uses two-pass software encoding when a hardware encoder is not selected, and reports the pass strategy in its plan and execution response. Hardware encodes remain single-pass because encoder support varies by platform.
+
+Resize plans preserve aspect ratio and normalize an odd requested width or height to the next even dimension. Post-operation verification checks the effective target dimension. Target-size compression similarly verifies that the rendered file does not exceed the requested byte target.
 
 Safety defaults:
 
@@ -76,6 +80,11 @@ Safety defaults:
 - explicit input/output path collisions are rejected;
 - existing outputs receive a `_1`, `_2`, … suffix unless `--overwrite` is explicit;
 - successful transforms run a post-operation verification appropriate to the output type.
+
+Execution responses retain the plan's stream choices, reasons, `quality_loss`,
+warnings, hardware, subtitle, and metadata decisions alongside the
+verification result so an Agent does not need to reconstruct those decisions
+from FFmpeg output.
 
 ## JSON Tool entrypoint
 
@@ -122,9 +131,11 @@ Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding,
 
 - [`schemas/tool-api.json`](schemas/tool-api.json) — machine-readable Tool API contract.
 - [`skills/mediaforge/SKILL.md`](skills/mediaforge/SKILL.md) — instructions for an AI agent using the tool.
+- [`skills/mediaforge/agents/openai.yaml`](skills/mediaforge/agents/openai.yaml) — OpenAI/Codex discovery metadata for the Agent Skill.
 - [`docs/architecture.md`](docs/architecture.md) — control-plane design and invariants.
 - [`docs/development.md`](docs/development.md) — local development, testing, and release notes.
 - [`docs/MediaForge-PRD-v1.0.md`](docs/MediaForge-PRD-v1.0.md) — the product requirements document supplied for this project.
+- [`docs/prd-v1-compliance.md`](docs/prd-v1-compliance.md) — requirement-to-test traceability for the V1 release gate.
 
 ## Status
 

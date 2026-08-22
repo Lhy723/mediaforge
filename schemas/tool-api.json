@@ -30,7 +30,7 @@
     "input": { "type": "string", "minLength": 1 },
     "output": { "type": "string" },
     "output_format": { "type": "string", "enum": ["mp4", "mkv", "mov", "webm"] },
-    "video_codec": { "type": "string", "enum": ["auto", "copy", "h264", "h265", "av1"] },
+    "video_codec": { "type": "string", "enum": ["auto", "copy", "h264", "h265", "vp9", "av1"] },
     "audio_codec": { "type": "string", "enum": ["auto", "copy", "aac", "opus", "mp3"] },
     "quality": { "type": "string", "enum": ["lossless", "very-high", "very_high", "high", "balanced", "small", "tiny"] },
     "hardware": { "type": "string", "enum": ["auto", "cpu", "gpu"] },

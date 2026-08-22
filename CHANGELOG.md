@@ -44,3 +44,20 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Semantic video operations now select software encoders from the live FFmpeg
   encoder list, so capability reports and generated plans stay aligned across
   FFmpeg builds (including AV1).
+- Acceptance coverage now proves the PRD release gates for H.264/AAC remux,
+  4K-to-1080p resize, all required audio extraction formats, source
+  immutability, and corrupt/mismatched output detection.
+- The bundled Agent Skill now includes OpenAI/Codex discovery metadata.
+- Progress reporting now derives duration from the media input when needed and
+  includes elapsed and estimated remaining time in both human and Agent modes.
+- Resize rounds odd requested dimensions to an explicit even target and
+  verifies the rendered geometry; target-size compression verifies the actual
+  output size against the requested byte limit.
+- WebM conversion now selects VP9/Opus automatically and rejects incompatible
+  explicit codec/container combinations during planning.
+- Semantic FFmpeg execution now keeps a bounded diagnostic tail while
+  consuming process output incrementally.
+- Successful execution responses now carry forward plan warnings, quality-loss,
+  hardware, subtitle, and metadata decisions for Agent consumers.
+- CI and release workflows now use the current checkout runtime, and
+  Dependabot tracks both Cargo and GitHub Actions dependencies.

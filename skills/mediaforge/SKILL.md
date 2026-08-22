@@ -46,7 +46,14 @@ media verify source.mp4 output.mp4 --json
 ```
 
 For target-size compression, review `passes` and `pass_strategy` in the plan;
-software encoding normally uses two passes for better size accuracy.
+software encoding normally uses two passes for better size accuracy. After
+execution, require `verification.checks.target_size_match: true`. For resize,
+review `target_dimension`; odd requests are explicitly rounded to an even
+encoder-compatible dimension and verified after rendering.
+
+Use codec `auto` unless the user explicitly requires one. MediaForge selects
+H.264/AAC for MP4 or MOV and VP9/Opus for WebM, and rejects incompatible
+explicit codec/container combinations during planning.
 
 ## JSON Tool calls
 

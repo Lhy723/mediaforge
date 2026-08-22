@@ -31,7 +31,10 @@ CLI arguments or one JSON Tool request
 For semantic transformations, `--progress` adds an independent stderr
 channel. Human CLI mode prints readable status text; JSON/Tool mode emits
 (`start`, `progress`, `complete`) NDJSON events. It never mixes progress lines
-into the Tool response on stdout.
+into the Tool response on stdout. When an operation does not provide an
+explicit duration, the progress layer probes the first media input so ordinary
+convert, compress, and resize jobs still report normalized completion,
+elapsed time, and an estimated remaining time.
 
 ## Boundaries
 
@@ -47,6 +50,9 @@ into the Tool response on stdout.
 - **Progress and diagnostics** are side channels. `--verbose`/`--debug` expose
   human-readable diagnostics on stderr, while `--progress` emits one JSON
   object per event on stderr.
+- **Process output** is consumed incrementally. Failure diagnostics retain a
+  bounded stderr tail so long FFmpeg jobs cannot grow agent memory without
+  limit.
 
 ## Hardware selection
 
@@ -75,6 +81,8 @@ final output; hardware encoding remains single-pass for portability.
    details rather than becoming the API itself.
 6. Subtitle and metadata decisions are represented in plans; incompatible
    subtitle conversions produce warnings instead of silent stream loss.
+7. Resize verification checks the planned effective dimension and even output
+   geometry; target-size compression checks the actual output byte size.
 
 The single-file implementation is deliberate for this first milestone: the
 behavioral contract is still moving. As operations grow, the next natural
