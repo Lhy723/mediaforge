@@ -16,6 +16,7 @@ cargo fmt -- --check
 cargo test
 cargo clippy --all-targets --all-features -- -D warnings
 cargo build --release --bin media
+./scripts/acceptance.sh target/release/media
 ```
 
 Smoke-test the agent contract with a dry run:
@@ -29,6 +30,11 @@ printf '%s\n' '{"operation":"ffmpeg","args":["-version"],"dry_run":true}' \
 For a real media regression, generate or provide a small local sample and run
 `inspect`, `plan`, one transformation, and `verify`. Keep generated media out
 of the repository; build artifacts and local caches are ignored by Git.
+
+The acceptance smoke test creates a short synthetic MP4 in a temporary
+directory and exercises the PRD V1 command loop, safety defaults, Tool API,
+progress channel, and structured verification failures. It requires both
+`ffmpeg` and `ffprobe` on `PATH`.
 
 ## Configuration during development
 
@@ -49,4 +55,5 @@ itself.
 Treat [`schemas/tool-api.json`](../schemas/tool-api.json), the Rust request
 model, README examples, and [`skills/mediaforge/SKILL.md`](../skills/mediaforge/SKILL.md)
 as one change set. Preserve one-request/one-response behavior and add a test
-for any new alias, validation rule, or structured error.
+for any new alias, validation rule, or structured error. Keep progress and
+debug output on stderr so stdout remains directly parseable JSON.

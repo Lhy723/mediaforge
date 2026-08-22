@@ -25,8 +25,12 @@ CLI arguments or one JSON Tool request
       verify output with FFprobe / filesystem
                   |
                   v
-         stable JSON response or error
+      stable JSON response or error
 ```
+
+For semantic transformations, `--progress` adds an independent stderr event
+stream (`start`, `progress`, `complete`). It never mixes progress lines into
+the Tool response on stdout.
 
 ## Boundaries
 
@@ -39,6 +43,9 @@ CLI arguments or one JSON Tool request
 - **Raw FFmpeg** is intentionally explicit. It is available for operations
   that are not yet represented by the semantic API, but it does not bypass the
   process boundary or the JSON response contract.
+- **Progress and diagnostics** are side channels. `--verbose`/`--debug` expose
+  human-readable diagnostics on stderr, while `--progress` emits one JSON
+  object per event on stderr.
 
 ## Hardware selection
 
@@ -58,6 +65,8 @@ the structured `HARDWARE_UNAVAILABLE` error with a CPU fallback suggestion.
    disabled by the request/configuration.
 5. Errors are structured and actionable; raw process text is retained as
    details rather than becoming the API itself.
+6. Subtitle and metadata decisions are represented in plans; incompatible
+   subtitle conversions produce warnings instead of silent stream loss.
 
 The single-file implementation is deliberate for this first milestone: the
 behavioral contract is still moving. As operations grow, the next natural

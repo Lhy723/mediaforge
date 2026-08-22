@@ -18,7 +18,7 @@ inspect → plan → execute → verify
 1. Run `media inspect <input> --json` before changing media.
 2. Run `media plan ... --json` for any operation that can transcode, discard streams, or change containers.
 3. Review `strategy`, `quality_loss`, `warnings`, `reason`, and the selected output path.
-4. Execute with `--json`. Use `--dry-run` when the user asks for a preview or when the plan is ambiguous.
+4. Execute with `--json`. Use `--dry-run` when the user asks for a preview or when the plan is ambiguous. For long-running work, add `--progress`; progress events are NDJSON on stderr and the final response remains JSON on stdout.
 5. Run `media verify <input> <output> --json` when the output was not already verified by the operation response.
 6. Report the output path, strategy, verification result, and any warnings.
 
@@ -37,6 +37,7 @@ media inspect source.mkv --json
 media plan source.mkv --to mp4 --json
 media convert source.mkv --to mp4 --json
 media compress source.mp4 --quality balanced --json
+media plan source.mp4 --target-size 500MB --json
 media resize source.mp4 --resolution 1080p --json
 media clip source.mp4 --start 00:10:00 --duration 30 --json
 media extract-audio source.mp4 --format flac --json
@@ -52,7 +53,7 @@ When the host can pipe structured input, prefer the Tool entrypoint over constru
 printf '%s\n' '{"operation":"convert","input":"source.mkv","output_format":"mp4","dry_run":true}' | media tool
 ```
 
-The Tool response is always JSON. `operation` accepts the semantic operations in the schema; use `output_format`, `video_codec`, `audio_codec`, `quality`, `hardware`, `dry_run`, `overwrite`, and `verify_after_execute` as needed. Verb-style aliases such as `convert_media`, `plan_media_operation`, and `verify_media` are also supported.
+The Tool response is always JSON. `operation` accepts the semantic operations in the schema; use `target_operation` for an explicit operation inside a plan request, and use `output_format`, `video_codec`, `audio_codec`, `quality`, `hardware`, `dry_run`, `overwrite`, `verify_after_execute`, and `progress` as needed. Verb-style aliases such as `convert_media`, `plan_media_operation`, and `verify_media` are also supported.
 
 For an operation that is not covered by the semantic API, use the explicit Raw
 FFmpeg operation and pass the argument vector without shell quoting:
@@ -64,8 +65,9 @@ printf '%s\n' '{"operation":"ffmpeg","args":["-i","source.mp4","-vf","scale=1280
 
 The tool loads optional TOML defaults from `MEDIAFORGE_CONFIG`,
 `$XDG_CONFIG_HOME/mediaforge/config.toml`, or `~/.config/mediaforge/config.toml`.
-Defaults may select quality, hardware, and codecs; overwrite still requires an
-explicit request field or CLI flag.
+Defaults apply to both CLI and Tool calls and may select quality, hardware,
+codecs, and progress; overwrite still requires an explicit request field or
+CLI flag.
 
 ## Error handling
 

@@ -4,9 +4,9 @@ use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command as ProcessCommand;
+use std::process::{Command as ProcessCommand, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
@@ -28,6 +28,14 @@ struct Cli {
     overwrite: bool,
     #[arg(long, global = true, help = "Write diagnostic process output to stderr")]
     verbose: bool,
+    #[arg(long, global = true, help = "Emit FFmpeg progress events as NDJSON on stderr")]
+    progress: bool,
+    #[arg(
+        long,
+        global = true,
+        help = "Enable verbose diagnostics (same stderr channel as --verbose)"
+    )]
+    debug: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -57,16 +65,39 @@ struct InputArgs {
 #[derive(Args, Debug, Clone)]
 struct PlanArgs {
     input: PathBuf,
+    #[arg(
+        long,
+        help = "Semantic operation to plan; inferred from operation-specific flags when omitted"
+    )]
+    operation: Option<String>,
     #[arg(long, help = "Target container, for example mp4 or mkv")]
     to: Option<String>,
     #[arg(long)]
     output: Option<PathBuf>,
-    #[arg(long, value_name = "CODEC", default_value = "auto")]
-    video_codec: String,
-    #[arg(long, value_name = "CODEC", default_value = "auto")]
-    audio_codec: String,
-    #[arg(long, default_value = "auto", value_enum)]
-    hardware: HardwareMode,
+    #[arg(long, value_name = "CODEC")]
+    video_codec: Option<String>,
+    #[arg(long, value_name = "CODEC")]
+    audio_codec: Option<String>,
+    #[arg(long, value_enum)]
+    hardware: Option<HardwareMode>,
+    #[arg(long, value_enum)]
+    quality: Option<Quality>,
+    #[arg(long)]
+    target_size: Option<String>,
+    #[arg(long)]
+    width: Option<u32>,
+    #[arg(long)]
+    resolution: Option<String>,
+    #[arg(long)]
+    start: Option<String>,
+    #[arg(long)]
+    duration: Option<String>,
+    #[arg(long)]
+    end: Option<String>,
+    #[arg(long)]
+    format: Option<String>,
+    #[arg(long)]
+    at: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -76,25 +107,25 @@ struct ConvertArgs {
     to: Option<String>,
     #[arg(long)]
     output: Option<PathBuf>,
-    #[arg(long, value_name = "CODEC", default_value = "auto")]
-    video_codec: String,
-    #[arg(long, value_name = "CODEC", default_value = "auto")]
-    audio_codec: String,
-    #[arg(long, default_value = "auto", value_enum)]
-    hardware: HardwareMode,
+    #[arg(long, value_name = "CODEC")]
+    video_codec: Option<String>,
+    #[arg(long, value_name = "CODEC")]
+    audio_codec: Option<String>,
+    #[arg(long, value_enum)]
+    hardware: Option<HardwareMode>,
 }
 
 #[derive(Args, Debug, Clone)]
 struct CompressArgs {
     input: PathBuf,
-    #[arg(long, default_value = "balanced", value_enum)]
-    quality: Quality,
+    #[arg(long, value_enum)]
+    quality: Option<Quality>,
     #[arg(long, help = "Target output size, e.g. 500MB or 1.5GB")]
     target_size: Option<String>,
     #[arg(long)]
     output: Option<PathBuf>,
-    #[arg(long, default_value = "auto", value_enum)]
-    hardware: HardwareMode,
+    #[arg(long, value_enum)]
+    hardware: Option<HardwareMode>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -192,6 +223,7 @@ struct ConfigFile {
     hardware: Option<String>,
     overwrite: Option<bool>,
     verify_after_execute: Option<bool>,
+    progress: Option<bool>,
     video: Option<ConfigCodec>,
     audio: Option<ConfigCodec>,
 }
@@ -204,6 +236,7 @@ struct ConfigCodec {
 #[derive(Debug, Clone, Deserialize)]
 struct ToolRequest {
     operation: String,
+    target_operation: Option<String>,
     input: Option<String>,
     output: Option<String>,
     output_format: Option<String>,
@@ -225,6 +258,7 @@ struct ToolRequest {
     dry_run: Option<bool>,
     overwrite: Option<bool>,
     verify_after_execute: Option<bool>,
+    progress: Option<bool>,
 }
 
 #[derive(Debug, Error)]
@@ -277,6 +311,11 @@ struct Context {
     overwrite: bool,
     verbose: bool,
     verify_after_execute: bool,
+    progress: bool,
+    default_quality: Quality,
+    default_hardware: HardwareMode,
+    default_video_codec: String,
+    default_audio_codec: String,
 }
 
 #[derive(Debug, Clone)]
@@ -304,12 +343,84 @@ struct HardwareSelection {
 fn main() {
     let cli = Cli::parse();
     let tool_mode = matches!(&cli.command, Command::Tool(_));
+    let json_mode = cli.json || tool_mode;
+    let config = match load_config() {
+        Ok(config) => config,
+        Err(error) => {
+            let value = json!({
+                "status": "error",
+                "code": error.code,
+                "message": error.message,
+                "details": error.details,
+                "suggestions": error.suggestions,
+            });
+            if json_mode {
+                print_json(&value);
+            } else {
+                eprintln!(
+                    "media: {}",
+                    value["message"].as_str().unwrap_or("Invalid configuration.")
+                );
+            }
+            std::process::exit(1);
+        }
+    };
+    let default_quality = match parse_quality_name(
+        config.default_quality.clone().unwrap_or_else(|| "balanced".to_string()),
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            if json_mode {
+                print_json(&json!({
+                    "status": "error",
+                    "code": error.code,
+                    "message": error.message,
+                    "details": error.details,
+                    "suggestions": error.suggestions,
+                }));
+            } else {
+                eprintln!("media: {}", error.message);
+            }
+            std::process::exit(1);
+        }
+    };
+    let default_hardware =
+        match parse_hardware_name(config.hardware.clone().unwrap_or_else(|| "auto".to_string())) {
+            Ok(value) => value,
+            Err(error) => {
+                if json_mode {
+                    print_json(&json!({
+                        "status": "error",
+                        "code": error.code,
+                        "message": error.message,
+                        "details": error.details,
+                        "suggestions": error.suggestions,
+                    }));
+                } else {
+                    eprintln!("media: {}", error.message);
+                }
+                std::process::exit(1);
+            }
+        };
     let context = Context {
-        json: cli.json || tool_mode,
+        json: json_mode,
         dry_run: cli.dry_run,
         overwrite: cli.overwrite,
-        verbose: cli.verbose,
-        verify_after_execute: true,
+        verbose: cli.verbose || cli.debug,
+        verify_after_execute: config.verify_after_execute.unwrap_or(true),
+        progress: cli.progress || config.progress.unwrap_or(false),
+        default_quality,
+        default_hardware,
+        default_video_codec: config
+            .video
+            .as_ref()
+            .and_then(|value| value.preferred_codec.clone())
+            .unwrap_or_else(|| "auto".to_string()),
+        default_audio_codec: config
+            .audio
+            .as_ref()
+            .and_then(|value| value.preferred_codec.clone())
+            .unwrap_or_else(|| "auto".to_string()),
     };
     let result = dispatch(&context, cli.command);
     match result {
@@ -382,7 +493,6 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
         AppError::new("INVALID_ARGUMENT", format!("Tool request is not valid JSON: {error}"))
             .with_suggestions(&["Send one JSON object with an operation and input field."])
     })?;
-    let config = load_config()?;
     let mut tool_context = context.clone();
     tool_context.json = true;
     if let Some(dry_run) = request.dry_run {
@@ -392,28 +502,15 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
     // CLI flag may relax the core safety policy.
     tool_context.overwrite = context.overwrite || request.overwrite.unwrap_or(false);
     tool_context.verify_after_execute =
-        request.verify_after_execute.or(config.verify_after_execute).unwrap_or(true);
-    let default_video_codec = config
-        .video
-        .as_ref()
-        .and_then(|value| value.preferred_codec.clone())
-        .unwrap_or_else(|| "auto".to_string());
-    let default_audio_codec = config
-        .audio
-        .as_ref()
-        .and_then(|value| value.preferred_codec.clone())
-        .unwrap_or_else(|| "auto".to_string());
-    let video_codec = request.video_codec.unwrap_or(default_video_codec);
-    let audio_codec = request.audio_codec.unwrap_or(default_audio_codec);
-    let quality = parse_quality_name(
-        request
-            .quality
-            .or_else(|| config.default_quality.clone())
-            .unwrap_or_else(|| "balanced".to_string()),
-    )?;
-    let hardware = parse_hardware_name(
-        request.hardware.or_else(|| config.hardware.clone()).unwrap_or_else(|| "auto".to_string()),
-    )?;
+        request.verify_after_execute.unwrap_or(context.verify_after_execute);
+    tool_context.progress = request.progress.unwrap_or(context.progress);
+    let video_codec = request.video_codec.clone();
+    let audio_codec = request.audio_codec.clone();
+    let requested_quality = request.quality.clone();
+    let quality =
+        requested_quality.as_ref().map(|value| parse_quality_name(value.clone())).transpose()?;
+    let hardware =
+        request.hardware.as_ref().map(|value| parse_hardware_name(value.clone())).transpose()?;
     let operation = normalize_operation(&request.operation);
     let input = || required_input(request.input.clone());
     match operation.as_str() {
@@ -422,11 +519,21 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
             &tool_context,
             Command::Plan(PlanArgs {
                 input: input()?,
+                operation: request.target_operation.clone(),
                 to: request.output_format.clone(),
                 output: request.output.clone().map(PathBuf::from),
-                video_codec,
-                audio_codec,
+                video_codec: video_codec.clone(),
+                audio_codec: audio_codec.clone(),
                 hardware,
+                quality,
+                target_size: request.target_size.clone(),
+                width: request.width,
+                resolution: request.resolution.clone(),
+                start: request.start.clone(),
+                duration: request.duration.clone(),
+                end: request.end.clone(),
+                format: request.format.clone(),
+                at: request.at.clone(),
             }),
         ),
         "convert" => dispatch(
@@ -670,14 +777,98 @@ fn inspect_command(context: &Context, input: &Path) -> Result<Value, AppError> {
 }
 
 fn plan_command(context: &Context, args: &PlanArgs) -> Result<Value, AppError> {
+    let planning_context = Context { dry_run: true, ..context.clone() };
+    let operation = args.operation.as_deref().map(normalize_operation).unwrap_or_else(|| {
+        if args.target_size.is_some() || args.quality.is_some() {
+            "compress".to_string()
+        } else if args.width.is_some() || args.resolution.is_some() {
+            "resize".to_string()
+        } else if args.start.is_some() {
+            "clip".to_string()
+        } else if args.format.is_some() {
+            "extract_audio".to_string()
+        } else if args.at.is_some() {
+            "thumbnail".to_string()
+        } else {
+            "convert".to_string()
+        }
+    });
+    match operation.as_str() {
+        "compress" => {
+            let quality = args.quality.unwrap_or(planning_context.default_quality);
+            return compress_command(
+                &planning_context,
+                &CompressArgs {
+                    input: args.input.clone(),
+                    quality: Some(quality),
+                    target_size: args.target_size.clone(),
+                    output: args.output.clone(),
+                    hardware: args.hardware,
+                },
+            );
+        }
+        "resize" => {
+            return resize_command(
+                &planning_context,
+                &ResizeArgs {
+                    input: args.input.clone(),
+                    width: args.width,
+                    resolution: args.resolution.clone(),
+                    output: args.output.clone(),
+                },
+            );
+        }
+        "clip" => {
+            return clip_command(
+                &planning_context,
+                &ClipArgs {
+                    input: args.input.clone(),
+                    start: args.start.clone().unwrap_or_else(|| "0".to_string()),
+                    duration: args.duration.clone(),
+                    end: args.end.clone(),
+                    output: args.output.clone(),
+                },
+            );
+        }
+        "extract_audio" => {
+            return extract_audio_command(
+                &planning_context,
+                &ExtractAudioArgs {
+                    input: args.input.clone(),
+                    format: args.format.clone().unwrap_or_else(|| "m4a".to_string()),
+                    output: args.output.clone(),
+                },
+            );
+        }
+        "thumbnail" => {
+            return thumbnail_command(
+                &planning_context,
+                &ThumbnailArgs {
+                    input: args.input.clone(),
+                    at: args.at.clone().unwrap_or_else(|| "0".to_string()),
+                    output: args.output.clone(),
+                },
+            );
+        }
+        "convert" => {}
+        _ => {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                format!("Planning operation {operation} is not supported."),
+            )
+            .with_suggestions(&[
+                "Use convert, compress, resize, clip, extract_audio, or thumbnail.",
+            ]));
+        }
+    }
     let plan = build_convert_plan(
-        context,
+        &planning_context,
         &args.input,
         args.to.as_deref(),
         args.output.as_deref(),
-        &args.video_codec,
-        &args.audio_codec,
-        args.hardware,
+        args.video_codec.as_deref().unwrap_or(&planning_context.default_video_codec),
+        args.audio_codec.as_deref().unwrap_or(&planning_context.default_audio_codec),
+        args.hardware.unwrap_or(planning_context.default_hardware),
     )?;
     let mut value = plan.value;
     if let Some(object) = value.as_object_mut() {
@@ -693,9 +884,9 @@ fn convert_command(context: &Context, args: &ConvertArgs) -> Result<Value, AppEr
         &args.input,
         args.to.as_deref(),
         args.output.as_deref(),
-        &args.video_codec,
-        &args.audio_codec,
-        args.hardware,
+        args.video_codec.as_deref().unwrap_or(&context.default_video_codec),
+        args.audio_codec.as_deref().unwrap_or(&context.default_audio_codec),
+        args.hardware.unwrap_or(context.default_hardware),
     )?;
     if context.dry_run {
         let mut value = plan.value;
@@ -804,6 +995,8 @@ fn build_convert_plan(
     audio_codec: &str,
     hardware: HardwareMode,
 ) -> Result<OperationPlan, AppError> {
+    let video_codec = video_codec.to_lowercase();
+    let audio_codec = audio_codec.to_lowercase();
     ensure_input(input)?;
     let probe = probe_media(input, context.verbose)?;
     let format = probe.raw.get("format").cloned().unwrap_or_else(|| json!({}));
@@ -837,14 +1030,57 @@ fn build_convert_plan(
         .and_then(Value::as_str)
         .unwrap_or("unknown")
         .to_lowercase();
+    let source_video_compatible = is_video_compatible(&target_container, &source_video_codec);
+    let source_audio_compatible = is_audio_compatible(&target_container, &source_audio_codec);
+    if video_codec == "copy" && !source_video_compatible {
+        return Err(AppError::new(
+            "UNSUPPORTED_CODEC",
+            format!(
+                "Cannot copy {} video into {}.",
+                display_codec(&source_video_codec),
+                target_container.to_uppercase()
+            ),
+        )
+        .with_details(json!({
+            "stream": "video",
+            "codec": source_video_codec,
+            "container": target_container,
+        }))
+        .with_suggestions(&[
+            "Use --video-codec auto to let MediaForge choose copy or transcode.",
+            "Choose a compatible target container.",
+        ]));
+    }
+    if audio_codec == "copy"
+        && first_stream(&streams, "audio").is_some()
+        && !source_audio_compatible
+    {
+        return Err(AppError::new(
+            "UNSUPPORTED_CODEC",
+            format!(
+                "Cannot copy {} audio into {}.",
+                display_codec(&source_audio_codec),
+                target_container.to_uppercase()
+            ),
+        )
+        .with_details(json!({
+            "stream": "audio",
+            "codec": source_audio_codec,
+            "container": target_container,
+        }))
+        .with_suggestions(&[
+            "Use --audio-codec auto to let MediaForge choose copy or transcode.",
+            "Choose a compatible target container.",
+        ]));
+    }
     let video_compatible =
-        video_codec == "auto" && is_video_compatible(&target_container, &source_video_codec);
+        (video_codec == "auto" || video_codec == "copy") && source_video_compatible;
     let audio_compatible =
-        audio_codec == "auto" && is_audio_compatible(&target_container, &source_audio_codec);
+        (audio_codec == "auto" || audio_codec == "copy") && source_audio_compatible;
     let video_action = if video_compatible { "copy" } else { "transcode" };
     let audio_action = if audio_compatible { "copy" } else { "transcode" };
     let hardware_selection =
-        select_video_hardware(context, hardware, video_codec, video_action == "transcode")?;
+        select_video_hardware(context, hardware, &video_codec, video_action == "transcode")?;
     let strategy = match (video_action, audio_action) {
         ("copy", "copy") if source_container == target_container => "copy",
         ("copy", "copy") => "remux",
@@ -893,7 +1129,7 @@ fn build_convert_plan(
         ffmpeg_args.extend(["-c:v".to_string(), "copy".to_string()]);
     } else {
         ffmpeg_args.extend(video_encode_args(
-            video_codec,
+            &video_codec,
             "balanced",
             hardware_selection.encoder.as_deref(),
         )?);
@@ -901,7 +1137,7 @@ fn build_convert_plan(
     if audio_action == "copy" {
         ffmpeg_args.extend(["-c:a".to_string(), "copy".to_string()]);
     } else {
-        ffmpeg_args.extend(audio_encode_args(audio_codec, DEFAULT_AUDIO_BITRATE)?);
+        ffmpeg_args.extend(audio_encode_args(&audio_codec, DEFAULT_AUDIO_BITRATE)?);
     }
     ffmpeg_args.extend([
         "-map_metadata".to_string(),
@@ -909,15 +1145,16 @@ fn build_convert_plan(
         "-map_chapters".to_string(),
         "0".to_string(),
     ]);
+    ffmpeg_args.extend(subtitle_codec_args(&target_container, &streams));
     let plan = json!({
         "status": "success",
         "operation": "convert",
         "input": absolute_display(input),
         "output": absolute_display(&target_path),
         "strategy": strategy,
-        "video": {"action": video_action, "codec": if video_action == "copy" { source_video_codec.clone() } else { preferred_codec(video_codec, "h264") }},
-        "audio": {"action": audio_action, "from": source_audio_codec, "to": if audio_action == "copy" { Value::Null } else { json!(preferred_codec(audio_codec, "aac")) }},
-        "subtitle": {"action": "preserve_when_compatible"},
+        "video": {"action": video_action, "codec": if video_action == "copy" { source_video_codec.clone() } else { preferred_codec(&video_codec, "h264") }},
+        "audio": {"action": audio_action, "from": source_audio_codec, "to": if audio_action == "copy" { Value::Null } else { json!(preferred_codec(&audio_codec, "aac")) }},
+        "subtitle": {"action": subtitle_strategy(&target_container, &streams)},
         "metadata": {"action": "preserve"},
         "hardware": {"requested": hardware_selection.requested, "selected": hardware_selection.selected, "encoder": hardware_selection.encoder, "reason": hardware_selection.reason},
         "quality_loss": quality_loss,
@@ -951,7 +1188,8 @@ fn execute_plan(context: &Context, input: &Path, plan: &OperationPlan) -> Result
     args.push(plan.output.to_string_lossy().to_string());
     run_ffmpeg(context, &args)?;
     let verification = if context.verify_after_execute {
-        verify_value(context, input, &plan.output)?
+        verify_value(context, input, &plan.output)
+            .map_err(|error| verification_failed(&plan.output, error))?
     } else {
         json!({
             "status": "skipped",
@@ -983,6 +1221,8 @@ fn execute_plan(context: &Context, input: &Path, plan: &OperationPlan) -> Result
 
 fn compress_command(context: &Context, args: &CompressArgs) -> Result<Value, AppError> {
     ensure_input(&args.input)?;
+    let quality = args.quality.unwrap_or(context.default_quality);
+    let hardware = args.hardware.unwrap_or(context.default_hardware);
     let probe = probe_media(&args.input, context.verbose)?;
     let output = resolve_output(context, &args.input, args.output.as_deref(), "mp4")?;
     let video = first_stream(
@@ -991,18 +1231,19 @@ fn compress_command(context: &Context, args: &CompressArgs) -> Result<Value, App
     )
     .ok_or_else(|| AppError::new("INVALID_MEDIA", "No video stream was found."))?;
     let duration = probe.duration_seconds.unwrap_or(0.0);
-    let hardware_selection = select_video_hardware(context, args.hardware, "h264", true)?;
+    let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
+    let hardware_selection = select_video_hardware(context, hardware, "h264", true)?;
     let mut ffmpeg_args =
         vec!["-map".to_string(), "0:v:0".to_string(), "-map".to_string(), "0:a?".to_string()];
     ffmpeg_args.extend(video_encode_args(
         "h264",
-        quality_name(args.quality),
+        quality_name(quality),
         hardware_selection.encoder.as_deref(),
     )?);
     let mut notes = vec![format!(
         "Compressing {} video with the {:?} quality preset.",
         video.get("codec_name").and_then(Value::as_str).unwrap_or("unknown"),
-        args.quality
+        quality
     )];
     match args.target_size.as_deref().map(parse_size) {
         Some(Ok(target_bytes)) => {
@@ -1024,12 +1265,10 @@ fn compress_command(context: &Context, args: &CompressArgs) -> Result<Value, App
         Some(Err(error)) => return Err(error),
         None => {
             if hardware_selection.encoder.is_some() {
-                ffmpeg_args.extend([
-                    "-b:v".to_string(),
-                    hardware_quality_bitrate(args.quality).to_string(),
-                ]);
+                ffmpeg_args
+                    .extend(["-b:v".to_string(), hardware_quality_bitrate(quality).to_string()]);
             } else {
-                let crf = match args.quality {
+                let crf = match quality {
                     Quality::Lossless => 0,
                     Quality::VeryHigh => 18,
                     Quality::High => 21,
@@ -1052,8 +1291,15 @@ fn compress_command(context: &Context, args: &CompressArgs) -> Result<Value, App
         "-b:a".to_string(),
         DEFAULT_AUDIO_BITRATE.to_string(),
     ]);
+    ffmpeg_args.extend(subtitle_ffmpeg_args("mp4", &streams));
+    ffmpeg_args.extend([
+        "-map_metadata".to_string(),
+        "0".to_string(),
+        "-map_chapters".to_string(),
+        "0".to_string(),
+    ]);
     let plan = OperationPlan {
-        value: json!({"status":"success","operation":"compress","input":absolute_display(&args.input),"output":absolute_display(&output),"strategy":"transcode","quality":args.quality,"quality_loss":"video_and_audio","reason":notes,"hardware":{"requested":hardware_selection.requested,"selected":hardware_selection.selected,"encoder":hardware_selection.encoder,"reason":hardware_selection.reason},"ffmpeg_args":ffmpeg_args}),
+        value: json!({"status":"success","operation":"compress","input":absolute_display(&args.input),"output":absolute_display(&output),"strategy":"transcode","quality":quality,"quality_loss":"video_and_audio","reason":notes,"hardware":{"requested":hardware_selection.requested,"selected":hardware_selection.selected,"encoder":hardware_selection.encoder,"reason":hardware_selection.reason},"subtitle":{"action":subtitle_strategy("mp4", &streams)},"warnings":subtitle_warnings(&streams, "mp4"),"ffmpeg_args":ffmpeg_args}),
         output,
         args: ffmpeg_args,
         strategy: "transcode".to_string(),
@@ -1081,8 +1327,14 @@ fn resize_command(context: &Context, args: &ResizeArgs) -> Result<Value, AppErro
     } else {
         format!("scale=-2:{:?}", height.unwrap())
     };
+    let probe = probe_media(&args.input, context.verbose)?;
+    let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
     let output = resolve_output(context, &args.input, args.output.as_deref(), "mp4")?;
-    let ffmpeg_args = vec![
+    let mut ffmpeg_args = vec![
+        "-map".to_string(),
+        "0:v:0".to_string(),
+        "-map".to_string(),
+        "0:a?".to_string(),
         "-vf".to_string(),
         filter.clone(),
         "-c:v".to_string(),
@@ -1094,8 +1346,15 @@ fn resize_command(context: &Context, args: &ResizeArgs) -> Result<Value, AppErro
         "-c:a".to_string(),
         "copy".to_string(),
     ];
+    ffmpeg_args.extend(subtitle_ffmpeg_args("mp4", &streams));
+    ffmpeg_args.extend([
+        "-map_metadata".to_string(),
+        "0".to_string(),
+        "-map_chapters".to_string(),
+        "0".to_string(),
+    ]);
     let plan = OperationPlan {
-        value: json!({"status":"success","operation":"resize","input":absolute_display(&args.input),"output":absolute_display(&output),"strategy":"video_transcode","filter":filter,"preserve_aspect_ratio":true,"even_dimensions":true,"quality_loss":"video_only","ffmpeg_args":ffmpeg_args}),
+        value: json!({"status":"success","operation":"resize","input":absolute_display(&args.input),"output":absolute_display(&output),"strategy":"video_transcode","filter":filter,"preserve_aspect_ratio":true,"even_dimensions":true,"quality_loss":"video_only","subtitle":{"action":subtitle_strategy("mp4", &streams)},"warnings":subtitle_warnings(&streams, "mp4"),"ffmpeg_args":ffmpeg_args}),
         output,
         args: ffmpeg_args,
         strategy: "video_transcode".to_string(),
@@ -1117,35 +1376,95 @@ fn clip_command(context: &Context, args: &ClipArgs) -> Result<Value, AppError> {
     if args.duration.is_some() && args.end.is_some() {
         return Err(AppError::new("INVALID_ARGUMENT", "Use only one of --duration or --end."));
     }
+    let start_seconds = parse_time_seconds(&args.start)?;
+    if start_seconds < 0.0 {
+        return Err(AppError::new("INVALID_ARGUMENT", "Clip start must not be negative."));
+    }
+    if let Some(duration) = &args.duration {
+        if parse_time_seconds(duration)? <= 0.0 {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Clip duration must be greater than zero.",
+            ));
+        }
+    }
+    if let Some(end) = &args.end {
+        if parse_time_seconds(end)? <= start_seconds {
+            return Err(AppError::new("INVALID_ARGUMENT", "Clip end must be after start."));
+        }
+    }
+    let probe = probe_media(&args.input, context.verbose)?;
+    let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
+    let source_container = probe
+        .raw
+        .get("format")
+        .and_then(|format| format.get("format_name"))
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .split(',')
+        .next()
+        .unwrap_or("unknown");
+    let source_container = internal_container(&args.input, source_container);
+    let source_video_codec = first_stream(&streams, "video")
+        .and_then(|stream| stream.get("codec_name").and_then(Value::as_str).map(str::to_lowercase))
+        .unwrap_or_else(|| "unknown".to_string());
+    let source_audio_codec = first_stream(&streams, "audio")
+        .and_then(|stream| stream.get("codec_name").and_then(Value::as_str).map(str::to_lowercase))
+        .unwrap_or_else(|| "unknown".to_string());
     let output = resolve_output(context, &args.input, args.output.as_deref(), "mp4")?;
-    let mut ffmpeg_args = vec![
-        "-ss".to_string(),
-        args.start.clone(),
-        "-i".to_string(),
-        args.input.to_string_lossy().to_string(),
-    ];
+    let copy_compatible = start_seconds == 0.0
+        && source_container == "mp4"
+        && is_video_compatible("mp4", &source_video_codec)
+        && (source_audio_codec == "unknown" || is_audio_compatible("mp4", &source_audio_codec));
+    let mut ffmpeg_args = Vec::new();
+    if !copy_compatible {
+        ffmpeg_args.extend([
+            "-ss".to_string(),
+            args.start.clone(),
+            "-i".to_string(),
+            args.input.to_string_lossy().to_string(),
+            "-map".to_string(),
+            "0:v:0".to_string(),
+            "-map".to_string(),
+            "0:a?".to_string(),
+        ]);
+    } else {
+        ffmpeg_args.extend(["-map".to_string(), "0".to_string()]);
+    }
     if let Some(duration) = &args.duration {
         ffmpeg_args.extend(["-t".to_string(), duration.clone()]);
     } else if let Some(end) = &args.end {
-        ffmpeg_args.extend(["-to".to_string(), end.clone()]);
+        let duration = parse_time_seconds(end)? - start_seconds;
+        ffmpeg_args.extend(["-t".to_string(), format!("{duration:.3}")]);
     }
-    ffmpeg_args.extend([
-        "-c:v".to_string(),
-        "libx264".to_string(),
-        "-preset".to_string(),
-        "medium".to_string(),
-        "-crf".to_string(),
-        "20".to_string(),
-        "-c:a".to_string(),
-        "aac".to_string(),
-        "-b:a".to_string(),
-        DEFAULT_AUDIO_BITRATE.to_string(),
-    ]);
+    if copy_compatible {
+        ffmpeg_args.extend(["-c".to_string(), "copy".to_string()]);
+    } else {
+        ffmpeg_args.extend([
+            "-c:v".to_string(),
+            "libx264".to_string(),
+            "-preset".to_string(),
+            "medium".to_string(),
+            "-crf".to_string(),
+            "20".to_string(),
+            "-c:a".to_string(),
+            "aac".to_string(),
+            "-b:a".to_string(),
+            DEFAULT_AUDIO_BITRATE.to_string(),
+        ]);
+    }
+    if copy_compatible {
+        ffmpeg_args.extend(subtitle_codec_args("mp4", &streams));
+    } else {
+        ffmpeg_args.extend(subtitle_ffmpeg_args("mp4", &streams));
+    }
+    ffmpeg_args.extend(["-map_metadata".to_string(), "0".to_string()]);
+    let strategy = if copy_compatible { "stream_copy" } else { "precise_transcode" };
     let plan = OperationPlan {
-        value: json!({"status":"success","operation":"clip","input":absolute_display(&args.input),"output":absolute_display(&output),"strategy":"precise_transcode","start":args.start,"duration":args.duration,"end":args.end,"quality_loss":"video_and_audio","ffmpeg_args":ffmpeg_args}),
+        value: json!({"status":"success","operation":"clip","input":absolute_display(&args.input),"output":absolute_display(&output),"strategy":strategy,"start":args.start,"duration":args.duration,"end":args.end,"quality_loss":if copy_compatible { "none" } else { "video_and_audio" },"reason":if copy_compatible { "Start is at zero and source streams are compatible with MP4; stream copy avoids re-encoding." } else { "Precise clipping re-encodes to honor the requested boundary." },"subtitle":{"action":subtitle_strategy("mp4", &streams)},"warnings":subtitle_warnings(&streams, "mp4"),"ffmpeg_args":ffmpeg_args}),
         output,
         args: ffmpeg_args,
-        strategy: "precise_transcode".to_string(),
+        strategy: strategy.to_string(),
     };
     if context.dry_run {
         let mut value = plan.value;
@@ -1160,23 +1479,28 @@ fn extract_audio_command(context: &Context, args: &ExtractAudioArgs) -> Result<V
     ensure_input(&args.input)?;
     let format = normalize_audio_format(&args.format)?;
     let output = resolve_output(context, &args.input, args.output.as_deref(), &format)?;
-    let codec = audio_encode_args(&format, DEFAULT_AUDIO_BITRATE)?;
-    let streams = probe_media(&args.input, context.verbose)?
-        .raw
-        .get("streams")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let probe = probe_media(&args.input, context.verbose)?;
+    let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
     if first_stream(&streams, "audio").is_none() {
         return Err(AppError::new("INVALID_MEDIA", "No audio stream was found."));
     }
+    let source_audio_codec = first_stream(&streams, "audio")
+        .and_then(|stream| stream.get("codec_name").and_then(Value::as_str).map(str::to_lowercase))
+        .unwrap_or_else(|| "unknown".to_string());
+    let target_audio_codec = audio_codec_for_format(&format);
+    let copy_audio = audio_copy_compatible(&source_audio_codec, &format);
     let mut ffmpeg_args = vec!["-map".to_string(), "0:a:0".to_string(), "-vn".to_string()];
-    ffmpeg_args.extend(codec);
+    if copy_audio {
+        ffmpeg_args.extend(["-c:a".to_string(), "copy".to_string()]);
+    } else {
+        ffmpeg_args.extend(audio_encode_args(target_audio_codec, DEFAULT_AUDIO_BITRATE)?);
+    }
+    ffmpeg_args.extend(["-map_metadata".to_string(), "0".to_string()]);
     let plan = OperationPlan {
-        value: json!({"status":"success","operation":"extract_audio","input":absolute_display(&args.input),"output":absolute_display(&output),"format":format,"strategy":"transcode","ffmpeg_args":ffmpeg_args}),
+        value: json!({"status":"success","operation":"extract_audio","input":absolute_display(&args.input),"output":absolute_display(&output),"format":format,"source_codec":source_audio_codec,"target_codec":target_audio_codec,"strategy":if copy_audio { "copy" } else { "transcode" },"quality_loss":if copy_audio { "none" } else { "audio_only" },"ffmpeg_args":ffmpeg_args}),
         output,
         args: ffmpeg_args,
-        strategy: "transcode".to_string(),
+        strategy: if copy_audio { "copy".to_string() } else { "transcode".to_string() },
     };
     if context.dry_run {
         let mut value = plan.value;
@@ -1230,7 +1554,8 @@ fn execute_simple_plan(
     args.push(plan.output.to_string_lossy().to_string());
     run_ffmpeg(context, &args)?;
     let verification = if context.verify_after_execute {
-        verify_operation(context, input, plan)?
+        verify_operation(context, input, plan)
+            .map_err(|error| verification_failed(&plan.output, error))?
     } else {
         json!({
             "status": "skipped",
@@ -1270,8 +1595,10 @@ fn verify_audio_output(context: &Context, input: &Path, output: &Path) -> Result
     let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
     let audio_present = first_stream(&streams, "audio").is_some();
     let decode_errors = decode_check(context, output).is_err();
+    let size_bytes = fs::metadata(output).map(|metadata| metadata.len()).unwrap_or(0);
+    let size_positive = size_bytes > 0;
     Ok(
-        json!({"status":"success","valid":audio_present && !decode_errors,"input":absolute_display(input),"output":absolute_display(output),"checks":{"readable":true,"audio_present":audio_present,"decode_errors":decode_errors},"warnings":[]}),
+        json!({"status":"success","valid":audio_present && !decode_errors && size_positive,"input":absolute_display(input),"output":absolute_display(output),"checks":{"readable":true,"size_bytes":size_bytes,"size_positive":size_positive,"audio_present":audio_present,"decode_errors":decode_errors},"warnings":[]}),
     )
 }
 
@@ -1280,8 +1607,10 @@ fn verify_thumbnail_output(context: &Context, output: &Path) -> Result<Value, Ap
     let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
     let video_present = first_stream(&streams, "video").is_some();
     let decode_errors = decode_check(context, output).is_err();
+    let size_bytes = fs::metadata(output).map(|metadata| metadata.len()).unwrap_or(0);
+    let size_positive = size_bytes > 0;
     Ok(
-        json!({"status":"success","valid":video_present && !decode_errors,"output":absolute_display(output),"checks":{"readable":true,"frame_present":video_present,"decode_errors":decode_errors},"warnings":[]}),
+        json!({"status":"success","valid":video_present && !decode_errors && size_positive,"output":absolute_display(output),"checks":{"readable":true,"size_bytes":size_bytes,"size_positive":size_positive,"frame_present":video_present,"decode_errors":decode_errors},"warnings":[]}),
     )
 }
 
@@ -1294,6 +1623,8 @@ fn verify_clip_output(
     let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
     let video_present = first_stream(&streams, "video").is_some();
     let decode_errors = decode_check(context, &plan.output).is_err();
+    let size_bytes = fs::metadata(&plan.output).map(|metadata| metadata.len()).unwrap_or(0);
+    let size_positive = size_bytes > 0;
     let expected_duration =
         if let Some(duration) = plan.value.get("duration").and_then(Value::as_str) {
             parse_time_seconds(duration).ok()
@@ -1313,7 +1644,7 @@ fn verify_clip_output(
         _ => true,
     };
     Ok(
-        json!({"status":"success","valid":video_present && !decode_errors && duration_match,"input":absolute_display(input),"output":absolute_display(&plan.output),"checks":{"readable":true,"video_present":video_present,"duration_match":duration_match,"decode_errors":decode_errors},"warnings":[]}),
+        json!({"status":"success","valid":video_present && !decode_errors && duration_match && size_positive,"input":absolute_display(input),"output":absolute_display(&plan.output),"checks":{"readable":true,"size_bytes":size_bytes,"size_positive":size_positive,"video_present":video_present,"duration_match":duration_match,"decode_errors":decode_errors},"warnings":[]}),
     )
 }
 
@@ -1336,9 +1667,9 @@ fn batch_command(context: &Context, args: &BatchArgs) -> Result<Value, AppError>
             input: file.clone(),
             to: Some(format.clone()),
             output,
-            video_codec: "auto".to_string(),
-            audio_codec: "auto".to_string(),
-            hardware: HardwareMode::Auto,
+            video_codec: None,
+            audio_codec: None,
+            hardware: None,
         };
         match convert_command(context, &convert) { Ok(value) => { success += 1; results.push(value); }, Err(error) => results.push(json!({"status":"error","input":absolute_display(&file),"code":error.code,"message":error.message,"details":error.details})) }
     }
@@ -1351,13 +1682,30 @@ fn batch_command(context: &Context, args: &BatchArgs) -> Result<Value, AppError>
 fn verify_command(context: &Context, input: &Path, output: &Path) -> Result<Value, AppError> {
     ensure_input(input)?;
     ensure_input(output)?;
-    let value = verify_value(context, input, output)?;
+    let value = verify_value(context, input, output).map_err(|error| {
+        AppError::new("VERIFY_FAILED", "Could not complete output verification.").with_details(
+            json!({
+                "cause": error.code,
+                "message": error.message,
+                "details": error.details,
+            }),
+        )
+    })?;
     if !value.get("valid").and_then(Value::as_bool).unwrap_or(false) {
         return Err(
             AppError::new("VERIFY_FAILED", "One or more output checks failed.").with_details(value)
         );
     }
     Ok(value)
+}
+
+fn verification_failed(output: &Path, error: AppError) -> AppError {
+    AppError::new("VERIFY_FAILED", "Could not complete output verification.").with_details(json!({
+        "output": absolute_display(output),
+        "cause": error.code,
+        "message": error.message,
+        "details": error.details,
+    }))
 }
 
 fn verify_value(context: &Context, input: &Path, output: &Path) -> Result<Value, AppError> {
@@ -1368,7 +1716,10 @@ fn verify_value(context: &Context, input: &Path, output: &Path) -> Result<Value,
     let output_streams =
         rendered.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
     let duration_match = match (source.duration_seconds, rendered.duration_seconds) {
-        (Some(a), Some(b)) => (a - b).abs() <= 1.5,
+        (Some(a), Some(b)) => {
+            let tolerance = (a * 0.02).max(1.5);
+            (a - b).abs() <= tolerance
+        }
         _ => true,
     };
     let video_present = first_stream(&output_streams, "video").is_some();
@@ -1376,17 +1727,50 @@ fn verify_value(context: &Context, input: &Path, output: &Path) -> Result<Value,
     let source_video = first_stream(&source_streams, "video");
     let audio_expected = first_stream(&source_streams, "audio").is_some();
     let output_video = first_stream(&output_streams, "video");
+    let source_audio = first_stream(&source_streams, "audio");
+    let output_audio = first_stream(&output_streams, "audio");
     let resolution_match = match (source_video, output_video) {
         (Some(a), Some(b)) => {
             a.get("width") == b.get("width") && a.get("height") == b.get("height")
         }
         _ => true,
     };
+    let video_codec_match =
+        match (first_stream(&source_streams, "video"), first_stream(&output_streams, "video")) {
+            (Some(a), Some(b)) => a.get("codec_name") == b.get("codec_name"),
+            _ => true,
+        };
+    let audio_codec_match = match (source_audio, output_audio) {
+        (Some(a), Some(b)) => a.get("codec_name") == b.get("codec_name"),
+        _ => true,
+    };
+    let stream_counts_match = ["video", "audio", "subtitle"]
+        .iter()
+        .all(|kind| stream_count(&source_streams, kind) == stream_count(&output_streams, kind));
     let decode_errors = decode_check(context, output).is_err();
     let audio_match = !audio_expected || audio_present;
-    let valid = duration_match && video_present && audio_match && !decode_errors;
+    let output_size_bytes = fs::metadata(output).map(|metadata| metadata.len()).unwrap_or(0);
+    let output_size_positive = output_size_bytes > 0;
+    let mut warnings = Vec::new();
+    if !audio_match {
+        warnings.push("Output is missing the input audio stream.".to_string());
+    }
+    if !resolution_match {
+        warnings.push("Output resolution differs from the input.".to_string());
+    }
+    if !video_codec_match || !audio_codec_match {
+        warnings.push("Output codec differs from the input.".to_string());
+    }
+    if !stream_counts_match {
+        warnings.push("The output stream counts differ from the input.".to_string());
+    }
+    if !duration_match {
+        warnings.push("Output duration differs materially from the input.".to_string());
+    }
+    let valid =
+        output_size_positive && duration_match && video_present && audio_match && !decode_errors;
     Ok(
-        json!({"status":"success","valid":valid,"input":absolute_display(input),"output":absolute_display(output),"checks":{"readable":true,"duration_match":duration_match,"video_present":video_present,"audio_present":audio_present,"audio_expected":audio_expected,"audio_match":audio_match,"resolution_match":resolution_match,"decode_errors":decode_errors},"warnings": if audio_match { json!([]) } else { json!(["Output is missing the input audio stream."]) }}),
+        json!({"status":"success","valid":valid,"input":absolute_display(input),"output":absolute_display(output),"checks":{"readable":true,"size_bytes":output_size_bytes,"size_positive":output_size_positive,"duration_match":duration_match,"video_present":video_present,"audio_present":audio_present,"audio_expected":audio_expected,"audio_match":audio_match,"resolution_match":resolution_match,"video_codec_match":video_codec_match,"audio_codec_match":audio_codec_match,"stream_counts_match":stream_counts_match,"decode_errors":decode_errors},"warnings":warnings}),
     )
 }
 
@@ -1411,9 +1795,9 @@ fn capabilities_command(context: &Context) -> Result<Value, AppError> {
         .unwrap_or_default();
     let mut encoders: BTreeMap<&str, Vec<String>> = BTreeMap::new();
     for (codec, needles) in [
-        ("h264", vec!["libx264", "h264_videotoolbox", "h264_nvenc"]),
-        ("hevc", vec!["libx265", "hevc_videotoolbox", "hevc_nvenc"]),
-        ("av1", vec!["libaom-av1", "libsvtav1", "av1_nvenc"]),
+        ("h264", vec!["libx264", "h264_videotoolbox", "h264_nvenc", "h264_qsv", "h264_amf"]),
+        ("hevc", vec!["libx265", "hevc_videotoolbox", "hevc_nvenc", "hevc_qsv", "hevc_amf"]),
+        ("av1", vec!["libaom-av1", "libsvtav1", "av1_nvenc", "av1_qsv", "av1_amf"]),
     ] {
         let found = needles
             .into_iter()
@@ -1426,8 +1810,18 @@ fn capabilities_command(context: &Context) -> Result<Value, AppError> {
             .collect::<Vec<_>>();
         encoders.insert(codec, found);
     }
+    let has_accel = |name: &str| hwaccels.iter().any(|value| value == name);
+    let has_encoder =
+        |needle: &str| encoders.values().any(|values| values.iter().any(|value| value == needle));
+    let hardware_acceleration = json!({
+        "videotoolbox": has_accel("videotoolbox") || has_encoder("h264_videotoolbox"),
+        "nvenc": has_accel("cuda") || has_encoder("h264_nvenc"),
+        "qsv": has_accel("qsv") || has_encoder("h264_qsv"),
+        "vaapi": has_accel("vaapi"),
+        "amf": has_encoder("h264_amf"),
+    });
     Ok(
-        json!({"status":"success","ffmpeg":{"installed":version != "not installed","version":version},"platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,"hardware_acceleration":hwaccels,"encoders":encoders}),
+        json!({"status":"success","ffmpeg":{"installed":version != "not installed","version":version},"platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,"hardware_acceleration":hardware_acceleration,"hardware_acceleration_list":hwaccels,"encoders":encoders}),
     )
 }
 
@@ -1468,57 +1862,142 @@ struct ProcessResult {
 }
 
 fn run_program(program: &str, args: &[&str], verbose: bool) -> Result<ProcessResult, AppError> {
-    let output = ProcessCommand::new(program).args(args).output().map_err(|error| {
-        if error.kind() == io::ErrorKind::NotFound {
-            AppError::new("FFMPEG_NOT_FOUND", format!("{program} was not found on PATH."))
-                .with_suggestions(&[
-                    "Install FFmpeg and FFprobe.",
-                    "Run media capabilities to inspect the current environment.",
-                ])
-        } else {
-            AppError::from_io("FFMPEG_FAILED", format!("Could not start {program}."), error)
-        }
-    })?;
+    let output = ProcessCommand::new(program)
+        .args(args)
+        .output()
+        .map_err(|error| process_start_error(program, error))?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     if verbose && !stderr.trim().is_empty() {
         eprintln!("[{program}] {}", stderr.trim());
     }
     if !output.status.success() {
-        let code =
-            if stderr.contains("Unknown encoder") || stderr.contains("Encoder (.*) not found") {
-                "ENCODER_UNAVAILABLE"
-            } else if stderr.contains("Unknown decoder") {
-                "DECODER_UNAVAILABLE"
-            } else if stderr.contains("Cannot create compression session")
-                || stderr.contains("No capable devices found")
-                || stderr.contains("hardware encoder")
-            {
-                "HARDWARE_UNAVAILABLE"
-            } else {
-                "FFMPEG_FAILED"
-            };
-        let error = AppError::new(code, format!("{program} exited with status {}.", output.status))
-            .with_details(json!({"command":program,"arguments":args,"stderr":stderr}));
-        return if code == "HARDWARE_UNAVAILABLE" {
-            Err(error.with_suggestions(&[
-                "Retry with --hardware cpu.",
-                "Run media capabilities to inspect available hardware encoders.",
-            ]))
-        } else {
-            Err(error)
-        };
+        return Err(process_failure_error(program, args, output.status, &stderr));
     }
     Ok(ProcessResult { stdout, stderr })
 }
 
 fn run_ffmpeg(context: &Context, args: &[String]) -> Result<(), AppError> {
+    if context.progress {
+        return run_ffmpeg_with_progress(context, args);
+    }
     let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
     let result = run_program("ffmpeg", &refs, context.verbose)?;
     if context.verbose && !result.stderr.trim().is_empty() {
         eprintln!("{}", result.stderr.trim());
     }
     Ok(())
+}
+
+fn process_start_error(program: &str, error: io::Error) -> AppError {
+    if error.kind() == io::ErrorKind::NotFound {
+        AppError::new("FFMPEG_NOT_FOUND", format!("{program} was not found on PATH."))
+            .with_suggestions(&[
+                "Install FFmpeg and FFprobe.",
+                "Run media capabilities to inspect the current environment.",
+            ])
+    } else {
+        AppError::from_io("FFMPEG_FAILED", format!("Could not start {program}."), error)
+    }
+}
+
+fn process_failure_error(
+    program: &str,
+    args: &[&str],
+    status: std::process::ExitStatus,
+    stderr: &str,
+) -> AppError {
+    let code = if stderr.contains("Unknown encoder") || stderr.contains("Encoder (.*) not found") {
+        "ENCODER_UNAVAILABLE"
+    } else if stderr.contains("Unknown decoder") {
+        "DECODER_UNAVAILABLE"
+    } else if stderr.contains("Cannot create compression session")
+        || stderr.contains("No capable devices found")
+        || stderr.contains("hardware encoder")
+    {
+        "HARDWARE_UNAVAILABLE"
+    } else {
+        "FFMPEG_FAILED"
+    };
+    let error = AppError::new(code, format!("{program} exited with status {status}."))
+        .with_details(json!({"command":program,"arguments":args,"stderr":stderr}));
+    if code == "HARDWARE_UNAVAILABLE" {
+        error.with_suggestions(&[
+            "Retry with --hardware cpu.",
+            "Run media capabilities to inspect available hardware encoders.",
+        ])
+    } else {
+        error
+    }
+}
+
+fn run_ffmpeg_with_progress(context: &Context, args: &[String]) -> Result<(), AppError> {
+    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let expected_duration = progress_duration_seconds(args);
+    let mut command = ProcessCommand::new("ffmpeg");
+    command
+        .args(&refs)
+        .args(["-progress", "pipe:2", "-nostats"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let mut child = command.spawn().map_err(|error| process_start_error("ffmpeg", error))?;
+    eprintln!("{}", json!({"event":"start","command":"ffmpeg","value":0.0}));
+    let stderr_pipe = child.stderr.take().ok_or_else(|| {
+        AppError::new("FFMPEG_FAILED", "Could not capture FFmpeg progress output.")
+    })?;
+    let mut reader = BufReader::new(stderr_pipe);
+    let mut line = String::new();
+    let mut stderr = String::new();
+    let mut out_time_ms: Option<f64> = None;
+    let mut speed: Option<String> = None;
+    let mut ended = false;
+    loop {
+        line.clear();
+        let bytes = reader.read_line(&mut line).map_err(|error| {
+            AppError::from_io("FFMPEG_FAILED", "Could not read FFmpeg progress output.", error)
+        })?;
+        if bytes == 0 {
+            break;
+        }
+        let trimmed = line.trim_end();
+        stderr.push_str(trimmed);
+        stderr.push('\n');
+        if let Some((key, value)) = trimmed.split_once('=') {
+            match key {
+                "out_time_ms" => out_time_ms = value.parse::<f64>().ok(),
+                "speed" => speed = Some(value.to_string()),
+                "progress" => {
+                    let is_end = value == "end";
+                    let normalized =
+                        expected_duration.zip(out_time_ms).map(|(duration, milliseconds)| {
+                            (milliseconds / 1_000_000.0 / duration).clamp(0.0, 1.0)
+                        });
+                    eprintln!(
+                        "{}",
+                        json!({"event":if is_end { "complete" } else { "progress" },"value":normalized,"out_time_ms":out_time_ms,"speed":speed.clone()})
+                    );
+                    ended = is_end;
+                }
+                _ => {}
+            }
+        } else if context.verbose && !trimmed.is_empty() {
+            eprintln!("[ffmpeg] {trimmed}");
+        }
+    }
+    let status = child
+        .wait()
+        .map_err(|error| AppError::from_io("FFMPEG_FAILED", "Could not wait for FFmpeg.", error))?;
+    if !status.success() {
+        return Err(process_failure_error("ffmpeg", &refs, status, &stderr));
+    }
+    if !ended {
+        eprintln!("{}", json!({"event":"complete","value":1.0,"speed":speed}));
+    }
+    Ok(())
+}
+
+fn progress_duration_seconds(args: &[String]) -> Option<f64> {
+    args.windows(2).find(|pair| pair[0] == "-t").and_then(|pair| parse_time_seconds(&pair[1]).ok())
 }
 
 fn decode_check(context: &Context, input: &Path) -> Result<(), AppError> {
@@ -1566,15 +2045,17 @@ fn resolve_output(
     if requested.exists() && !context.overwrite {
         return Ok(next_available_path(&requested));
     }
-    if let Some(parent) = requested.parent() {
-        if !parent.as_os_str().is_empty() && !parent.exists() {
-            fs::create_dir_all(parent).map_err(|error| {
-                AppError::from_io(
-                    "OUTPUT_UNWRITABLE",
-                    format!("Cannot create output directory {}", parent.display()),
-                    error,
-                )
-            })?;
+    if !context.dry_run {
+        if let Some(parent) = requested.parent() {
+            if !parent.as_os_str().is_empty() && !parent.exists() {
+                fs::create_dir_all(parent).map_err(|error| {
+                    AppError::from_io(
+                        "OUTPUT_UNWRITABLE",
+                        format!("Cannot create output directory {}", parent.display()),
+                        error,
+                    )
+                })?;
+            }
         }
     }
     Ok(requested)
@@ -1623,6 +2104,12 @@ fn first_stream(streams: &[Value], kind: &str) -> Option<Value> {
         .iter()
         .find(|stream| stream.get("codec_type").and_then(Value::as_str) == Some(kind))
         .cloned()
+}
+fn stream_count(streams: &[Value], kind: &str) -> usize {
+    streams
+        .iter()
+        .filter(|stream| stream.get("codec_type").and_then(Value::as_str) == Some(kind))
+        .count()
 }
 
 fn normalize_video(stream: &Value) -> Value {
@@ -1721,6 +2208,29 @@ fn normalize_audio_format(value: &str) -> Result<String, AppError> {
         Err(AppError::new("UNSUPPORTED_FORMAT", format!("Unsupported audio format: {value}")))
     }
 }
+
+fn audio_codec_for_format(format: &str) -> &'static str {
+    match format {
+        "m4a" | "aac" => "aac",
+        "mp3" => "mp3",
+        "flac" => "flac",
+        "wav" => "wav",
+        "opus" => "opus",
+        _ => "aac",
+    }
+}
+
+fn audio_copy_compatible(codec: &str, format: &str) -> bool {
+    match format {
+        "m4a" | "aac" => codec == "aac",
+        "mp3" => codec == "mp3",
+        "flac" => codec == "flac",
+        "wav" => codec.starts_with("pcm_") || codec == "pcm_s16le",
+        "opus" => codec == "opus",
+        _ => false,
+    }
+}
+
 fn is_video_compatible(container: &str, codec: &str) -> bool {
     match container {
         "mp4" | "mov" => ["h264", "hevc", "mpeg4", "av1", "vp9"].contains(&codec),
@@ -1749,6 +2259,12 @@ fn video_encode_args(
     quality: &str,
     hardware_encoder: Option<&str>,
 ) -> Result<Vec<String>, AppError> {
+    if codec == "copy" {
+        return Err(AppError::new(
+            "UNSUPPORTED_CODEC",
+            "Video codec `copy` cannot be used for a transcode plan.",
+        ));
+    }
     let codec = preferred_codec(codec, "h264");
     if let Some(encoder) = hardware_encoder {
         return Ok(vec!["-c:v".into(), encoder.into()]);
@@ -1806,6 +2322,12 @@ fn hardware_quality_bitrate(quality: Quality) -> &'static str {
     }
 }
 fn audio_encode_args(codec: &str, bitrate: &str) -> Result<Vec<String>, AppError> {
+    if codec == "copy" {
+        return Err(AppError::new(
+            "UNSUPPORTED_CODEC",
+            "Audio codec `copy` cannot be used for a transcode plan.",
+        ));
+    }
     match preferred_codec(codec, "aac").as_str() {
         "aac" => Ok(vec!["-c:a".into(), "aac".into(), "-b:a".into(), bitrate.into()]),
         "opus" => Ok(vec!["-c:a".into(), "libopus".into(), "-b:a".into(), bitrate.into()]),
@@ -1818,16 +2340,55 @@ fn audio_encode_args(codec: &str, bitrate: &str) -> Result<Vec<String>, AppError
     }
 }
 fn subtitle_warnings(streams: &[Value], container: &str) -> Vec<String> {
-    if container == "mp4"
-        && streams.iter().any(|stream| {
-            stream.get("codec_type").and_then(Value::as_str) == Some("subtitle")
-                && stream.get("codec_name").and_then(Value::as_str) == Some("subrip")
-        })
-    {
-        vec!["SubRip subtitles may require conversion for MP4 compatibility.".to_string()]
-    } else {
-        Vec::new()
+    let subtitle_count = stream_count(streams, "subtitle");
+    if subtitle_count == 0 {
+        return Vec::new();
     }
+    match container {
+        "mp4" => {
+            vec!["Subtitle streams will be converted to mov_text for MP4 compatibility.".to_string()]
+        }
+        "webm" => {
+            vec!["Subtitle streams will be converted to WebVTT for WebM compatibility.".to_string()]
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn subtitle_strategy(container: &str, streams: &[Value]) -> &'static str {
+    if stream_count(streams, "subtitle") == 0 {
+        "none"
+    } else {
+        match container {
+            "mp4" => "convert_to_mov_text",
+            "webm" => "convert_to_webvtt",
+            _ => "copy",
+        }
+    }
+}
+
+fn subtitle_ffmpeg_args(container: &str, streams: &[Value]) -> Vec<String> {
+    if stream_count(streams, "subtitle") == 0 {
+        return Vec::new();
+    }
+    let codec = match container {
+        "mp4" => "mov_text",
+        "webm" => "webvtt",
+        _ => "copy",
+    };
+    vec!["-map".to_string(), "0:s?".to_string(), "-c:s".to_string(), codec.to_string()]
+}
+
+fn subtitle_codec_args(container: &str, streams: &[Value]) -> Vec<String> {
+    if stream_count(streams, "subtitle") == 0 {
+        return Vec::new();
+    }
+    let codec = match container {
+        "mp4" => "mov_text",
+        "webm" => "webvtt",
+        _ => "copy",
+    };
+    vec!["-c:s".to_string(), codec.to_string()]
 }
 
 fn parse_resolution(value: &str) -> Result<u32, AppError> {
@@ -2040,5 +2601,35 @@ mod tests {
             Quality::VeryHigh as u8
         );
         assert!(matches!(parse_hardware_name("gpu".to_string()), Ok(HardwareMode::Gpu)));
+    }
+
+    #[test]
+    fn audio_extraction_prefers_copy_for_compatible_codecs() {
+        assert_eq!(audio_codec_for_format("m4a"), "aac");
+        assert!(audio_copy_compatible("aac", "m4a"));
+        assert!(audio_copy_compatible("pcm_s16le", "wav"));
+        assert!(!audio_copy_compatible("aac", "flac"));
+    }
+
+    #[test]
+    fn progress_duration_and_stream_counts_are_deterministic() {
+        let args = vec!["-t".to_string(), "00:01:30".to_string()];
+        assert_eq!(progress_duration_seconds(&args), Some(90.0));
+        let streams = vec![
+            json!({"codec_type":"video"}),
+            json!({"codec_type":"audio"}),
+            json!({"codec_type":"subtitle"}),
+            json!({"codec_type":"subtitle"}),
+        ];
+        assert_eq!(stream_count(&streams, "video"), 1);
+        assert_eq!(stream_count(&streams, "subtitle"), 2);
+        assert_eq!(subtitle_strategy("mp4", &streams), "convert_to_mov_text");
+    }
+
+    #[test]
+    fn subtitle_mapping_does_not_duplicate_existing_full_map() {
+        let streams = vec![json!({"codec_type":"subtitle"})];
+        assert_eq!(subtitle_ffmpeg_args("mp4", &streams), ["-map", "0:s?", "-c:s", "mov_text"]);
+        assert_eq!(subtitle_codec_args("mp4", &streams), ["-c:s", "mov_text"]);
     }
 }

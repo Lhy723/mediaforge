@@ -22,6 +22,11 @@
         "ffmpeg"
       ]
     },
+    "target_operation": {
+      "type": "string",
+      "enum": ["convert", "compress", "resize", "clip", "extract_audio", "thumbnail"],
+      "description": "Semantic operation to plan when operation is plan; omitted values are inferred from the supplied fields."
+    },
     "input": { "type": "string", "minLength": 1 },
     "output": { "type": "string" },
     "output_format": { "type": "string", "enum": ["mp4", "mkv", "mov", "webm"] },
@@ -46,7 +51,12 @@
     },
     "overwrite": { "type": "boolean", "default": false },
     "dry_run": { "type": "boolean", "default": false },
-    "verify_after_execute": { "type": "boolean", "default": true }
+    "verify_after_execute": { "type": "boolean", "default": true },
+    "progress": {
+      "type": "boolean",
+      "default": false,
+      "description": "Emit FFmpeg progress events as NDJSON on stderr while keeping stdout machine-readable."
+    }
   },
   "allOf": [
     {

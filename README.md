@@ -42,7 +42,7 @@ media convert input.mkv --to mp4 --json
 media verify input.mkv output.mp4 --json
 ```
 
-All transformation commands accept `--dry-run`. JSON is emitted only on stdout; FFmpeg diagnostics stay on stderr and can be enabled with `--verbose`.
+All transformation commands accept `--dry-run`. JSON is emitted only on stdout; FFmpeg diagnostics stay on stderr and can be enabled with `--verbose` or `--debug`. Long-running transformations can emit progress NDJSON on stderr with `--progress`, so an agent can parse progress without losing the one-response JSON contract.
 
 ## Operations
 
@@ -55,12 +55,17 @@ Examples:
 
 ```bash
 media compress video.mp4 --quality balanced --json
+media plan video.mp4 --target-size 500MB --json
 media resize video.mp4 --resolution 1080p --dry-run --json
 media clip video.mp4 --start 00:10:00 --duration 30 --json
 media extract-audio video.mp4 --format flac --json
 media thumbnail video.mp4 --at 50% --json
 media batch './videos/*.mov' --convert mp4 --json
 ```
+
+`media plan` accepts `--operation` when the target operation is known explicitly. If it is omitted, MediaForge infers `compress`, `resize`, `clip`, `extract_audio`, or `thumbnail` from operation-specific flags; otherwise it plans a container conversion. Plans report copy versus transcode decisions, metadata and subtitle handling, hardware selection, quality loss, warnings, and the collision-safe output path.
+
+Clipping uses stream copy when a zero-offset MP4 clip is compatible with the source streams and uses precise re-encoding when the requested boundary requires it. Audio extraction also copies a compatible source codec (for example AAC to M4A) before falling back to a transcode.
 
 Safety defaults:
 
@@ -78,7 +83,7 @@ printf '%s\n' '{"operation":"plan","input":"input.mkv","output_format":"mp4"}' \
   | media tool
 ```
 
-The Tool entrypoint accepts the semantic operations above plus `operation: "ffmpeg"` for the explicit escape hatch. For integrations that prefer verb-style names, `inspect_media`, `plan_media_operation`, `convert_media`, `compress_media`, `resize_media`, `clip_media`, `create_thumbnail`, and `verify_media` are stable aliases. Request fields include `dry_run`, `overwrite`, `verify_after_execute`, quality, hardware, codecs, and operation-specific arguments. The full contract is [`schemas/tool-api.json`](schemas/tool-api.json).
+The Tool entrypoint accepts the semantic operations above plus `operation: "ffmpeg"` for the explicit escape hatch. For integrations that prefer verb-style names, `inspect_media`, `plan_media_operation`, `convert_media`, `compress_media`, `resize_media`, `clip_media`, `create_thumbnail`, and `verify_media` are stable aliases. Request fields include `dry_run`, `overwrite`, `verify_after_execute`, `progress`, quality, hardware, codecs, and operation-specific arguments. A `plan` request can set `target_operation` explicitly; otherwise the same inference rules as the CLI apply. The full contract is [`schemas/tool-api.json`](schemas/tool-api.json).
 
 ```bash
 printf '%s\n' '{"operation":"convert","input":"input.mkv","output":"output.mp4","dry_run":true}' \
@@ -97,6 +102,7 @@ default_quality = "balanced"
 hardware = "auto"
 overwrite = false
 verify_after_execute = true
+progress = false
 
 [video]
 preferred_codec = "auto"
@@ -105,9 +111,9 @@ preferred_codec = "auto"
 preferred_codec = "aac"
 ```
 
-Configuration can provide preferred codecs and quality, but cannot implicitly enable overwrite. `verify_after_execute = false` is available for trusted high-throughput jobs; the response then marks verification as skipped. Start from [`config.example.toml`](config.example.toml).
+Configuration applies to both the CLI and Tool entrypoint. It can provide preferred codecs, quality, hardware mode, and progress defaults, but cannot implicitly enable overwrite. `verify_after_execute = false` is available for trusted high-throughput jobs; the response then marks verification as skipped. Start from [`config.example.toml`](config.example.toml).
 
-Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding, while `--hardware gpu` probes FFmpeg's available hardware encoder for the requested codec. If the runtime cannot create a hardware session, MediaForge returns `HARDWARE_UNAVAILABLE` with a CPU fallback suggestion.
+Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding, while `--hardware gpu` probes FFmpeg's available hardware encoder for the requested codec. `media capabilities --json` reports both a structured `hardware_acceleration` map and the available encoder lists. If the runtime cannot create a hardware session, MediaForge returns `HARDWARE_UNAVAILABLE` with a CPU fallback suggestion.
 
 ## Project map
 

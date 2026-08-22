@@ -45,3 +45,6 @@ jobs:
 
       - name: Build release binary
         run: cargo build --release --bin media
+
+      - name: Run media acceptance smoke
+        run: ./scripts/acceptance.sh target/release/media

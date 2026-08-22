@@ -26,3 +26,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - TOML configuration, Tool API schema, Agent Skill, architecture notes, and
   contributor documentation.
 - Continuous integration and tagged-release workflows.
+- Semantic plan inference for compression, resize, clipping, audio extraction,
+  and thumbnails, plus explicit copy-versus-transcode strategies.
+- Safe audio copy extraction, clip stream-copy selection, subtitle/metadata
+  preservation metadata, structured capability maps, and post-operation checks
+  for size, codecs, stream counts, and decode errors.
+- CLI/Tool progress events on stderr, `--debug`, and configuration defaults
+  shared by CLI and Tool calls.
