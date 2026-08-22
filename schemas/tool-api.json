@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mediaforge.dev/schemas/tool-api.json",
+  "title": "MediaForge Tool API",
+  "type": "object",
+  "required": ["operation", "input"],
+  "properties": {
+    "operation": {
+      "type": "string",
+      "enum": ["inspect", "plan", "convert", "compress", "resize", "clip", "extract_audio", "thumbnail", "batch", "verify", "capabilities", "ffmpeg"]
+    },
+    "input": { "type": "string", "minLength": 1 },
+    "output": { "type": "string" },
+    "output_format": { "type": "string", "enum": ["mp4", "mkv", "mov", "webm"] },
+    "video_codec": { "type": "string", "enum": ["auto", "copy", "h264", "h265", "av1"] },
+    "audio_codec": { "type": "string", "enum": ["auto", "copy", "aac", "opus", "mp3"] },
+    "quality": { "type": "string", "enum": ["lossless", "very-high", "high", "balanced", "small", "tiny"] },
+    "hardware": { "type": "string", "enum": ["auto", "cpu", "gpu"] },
+    "args": {
+      "type": "array",
+      "description": "Raw FFmpeg arguments. Use only for operations not covered by MediaForge semantics.",
+      "items": { "type": "string" }
+    },
+    "overwrite": { "type": "boolean", "default": false },
+    "dry_run": { "type": "boolean", "default": false }
+  },
+  "additionalProperties": true
+}

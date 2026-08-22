@@ -1,0 +1,10 @@
+default_quality = "balanced"
+hardware = "auto"
+overwrite = false
+verify_after_execute = true
+
+[video]
+preferred_codec = "auto"
+
+[audio]
+preferred_codec = "aac"
