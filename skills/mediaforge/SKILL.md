@@ -45,6 +45,9 @@ media thumbnail source.mp4 --at 50% --json
 media verify source.mp4 output.mp4 --json
 ```
 
+For target-size compression, review `passes` and `pass_strategy` in the plan;
+software encoding normally uses two passes for better size accuracy.
+
 ## JSON Tool calls
 
 When the host can pipe structured input, prefer the Tool entrypoint over constructing shell flags:

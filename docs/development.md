@@ -36,6 +36,10 @@ directory and exercises the PRD V1 command loop, safety defaults, Tool API,
 progress channel, and structured verification failures. It requires both
 `ffmpeg` and `ffprobe` on `PATH`.
 
+The script also creates MP4, MKV, MOV, and WebM fixtures, checks subtitle
+conversion, exercises both human and Agent progress channels, and verifies
+output-parent safety.
+
 ## Configuration during development
 
 Set `MEDIAFORGE_CONFIG` to a temporary TOML file when testing codec or quality

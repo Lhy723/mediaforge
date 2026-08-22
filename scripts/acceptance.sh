@@ -45,10 +45,25 @@ assert_json "$WORK_DIR/inspect.json" "v['status'] == 'success' and len(v['video'
 assert_json "$WORK_DIR/plan-convert.json" "v['status'] == 'planned' and v['operation'] == 'convert' and v['strategy'] in ('copy', 'remux')"
 
 "$BIN" plan "$SRC" --target-size 1MB --json > "$WORK_DIR/plan-compress.json"
-assert_json "$WORK_DIR/plan-compress.json" "v['status'] == 'planned' and v['operation'] == 'compress'"
+assert_json "$WORK_DIR/plan-compress.json" "v['status'] == 'planned' and v['operation'] == 'compress' and v['passes'] == 2 and v['pass_strategy'] == 'two_pass'"
+
+ffmpeg -hide_banner -loglevel error -i "$SRC" -c copy "$WORK_DIR/source.mov"
+ffmpeg -hide_banner -loglevel error -i "$SRC" -c copy "$WORK_DIR/source.mkv"
+ffmpeg -hide_banner -loglevel error -i "$SRC" -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -c:a libopus "$WORK_DIR/source.webm"
+for media in "$SRC" "$WORK_DIR/source.mkv" "$WORK_DIR/source.mov" "$WORK_DIR/source.webm"; do
+  name="$(basename "$media" | tr '.' '-')"
+  "$BIN" inspect "$media" --json > "$WORK_DIR/inspect-$name.json"
+  assert_json "$WORK_DIR/inspect-$name.json" "v['status'] == 'success' and len(v['video']) == 1 and len(v['audio']) == 1"
+done
 
 "$BIN" convert "$SRC" --to mkv --output "$WORK_DIR/converted.mkv" --json > "$WORK_DIR/convert.json"
 assert_json "$WORK_DIR/convert.json" "v['status'] == 'success' and v['verification']['valid'] is True"
+
+"$BIN" convert "$SRC" --to mkv --video-codec h265 --quality tiny --dry-run --json > "$WORK_DIR/convert-quality.json"
+assert_json "$WORK_DIR/convert-quality.json" "v['quality'] == 'tiny' and '-crf' in v['ffmpeg_args'] and v['ffmpeg_args'][v['ffmpeg_args'].index('-crf') + 1] == '34'"
+
+"$BIN" plan "$SRC" --to mkv --quality high --dry-run --json > "$WORK_DIR/plan-convert-quality.json"
+assert_json "$WORK_DIR/plan-convert-quality.json" "v['operation'] == 'convert' and v['quality'] == 'high'"
 
 printf '1\n00:00:00,000 --> 00:00:01,000\nHello MediaForge\n' > "$WORK_DIR/caption.srt"
 ffmpeg -hide_banner -loglevel error -i "$SRC" -f srt -i "$WORK_DIR/caption.srt" \
@@ -64,6 +79,9 @@ assert_json "$WORK_DIR/caption.json" "v['status'] == 'success' and v['verificati
 
 "$BIN" compress "$SRC" --quality tiny --output "$WORK_DIR/compressed.mp4" --json > "$WORK_DIR/compress.json"
 assert_json "$WORK_DIR/compress.json" "v['status'] == 'success' and v['verification']['valid'] is True"
+
+"$BIN" compress "$SRC" --target-size 100KB --output "$WORK_DIR/compressed-target.mp4" --json > "$WORK_DIR/compress-target.json"
+assert_json "$WORK_DIR/compress-target.json" "v['status'] == 'success' and v['passes'] == 2 and v['pass_strategy'] == 'two_pass' and v['verification']['valid'] is True"
 
 "$BIN" resize "$SRC" --resolution 120p --output "$WORK_DIR/resized.mp4" --json > "$WORK_DIR/resize.json"
 assert_json "$WORK_DIR/resize.json" "v['status'] == 'success' and v['verification']['valid'] is True"
@@ -110,6 +128,11 @@ if not any(event.get("event") == "complete" for event in events):
     raise SystemExit("progress stream did not contain a complete event")
 PY
 
+"$BIN" --progress clip "$SRC" --start 0 --duration 1 --output "$WORK_DIR/progress-human.mp4" \
+  > "$WORK_DIR/progress-human.out" 2> "$WORK_DIR/progress-human.err"
+grep -q "Converting media" "$WORK_DIR/progress-human.err"
+grep -q "Complete" "$WORK_DIR/progress-human.err"
+
 "$BIN" capabilities --json > "$WORK_DIR/capabilities.json"
 assert_json "$WORK_DIR/capabilities.json" "isinstance(v['hardware_acceleration'], dict) and 'encoders' in v"
 
@@ -120,6 +143,13 @@ assert_json "$WORK_DIR/safety.json" "v['status'] == 'planned' and v['output'].en
 MISSING_DIR="$WORK_DIR/not-created"
 "$BIN" convert "$SRC" --to mp4 --output "$MISSING_DIR/output.mp4" --dry-run --json > "$WORK_DIR/dry-run.json"
 [[ ! -d "$MISSING_DIR" ]] || { echo "dry-run created an output directory" >&2; exit 1; }
+
+touch "$WORK_DIR/not-a-directory"
+if "$BIN" convert "$SRC" --to mp4 --output "$WORK_DIR/not-a-directory/output.mp4" --json > "$WORK_DIR/unwritable.json"; then
+  echo "convert unexpectedly accepted a file as the output parent" >&2
+  exit 1
+fi
+assert_json "$WORK_DIR/unwritable.json" "v['code'] == 'OUTPUT_UNWRITABLE'"
 
 cat > "$WORK_DIR/config.toml" <<'EOF'
 default_quality = "tiny"

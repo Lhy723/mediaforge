@@ -33,3 +33,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
   for size, codecs, stream counts, and decode errors.
 - CLI/Tool progress events on stderr, `--debug`, and configuration defaults
   shared by CLI and Tool calls.
+- Convert quality presets now flow through both CLI and Tool API requests;
+  semantic FFmpeg stderr is consumed incrementally, and human progress text is
+  available alongside Agent NDJSON events.
+- Inspect derives bit depth from pixel formats, warns on unsafe subtitle
+  conversions, and validates invalid CLI arguments as structured JSON when
+  requested.
+- Target-size compression now performs and reports two-pass software encoding,
+  with temporary pass logs cleaned after execution.
+- Semantic video operations now select software encoders from the live FFmpeg
+  encoder list, so capability reports and generated plans stay aligned across
+  FFmpeg builds (including AV1).

@@ -28,9 +28,10 @@ CLI arguments or one JSON Tool request
       stable JSON response or error
 ```
 
-For semantic transformations, `--progress` adds an independent stderr event
-stream (`start`, `progress`, `complete`). It never mixes progress lines into
-the Tool response on stdout.
+For semantic transformations, `--progress` adds an independent stderr
+channel. Human CLI mode prints readable status text; JSON/Tool mode emits
+(`start`, `progress`, `complete`) NDJSON events. It never mixes progress lines
+into the Tool response on stdout.
 
 ## Boundaries
 
@@ -54,6 +55,13 @@ the same request remains predictable across hosts. `gpu` probes FFmpeg's
 available hardware encoders for the requested codec and records the selected
 encoder in the plan. A runtime failure to create the hardware session becomes
 the structured `HARDWARE_UNAVAILABLE` error with a CPU fallback suggestion.
+Software video operations also probe the live FFmpeg encoder list before
+building a plan, so the selected encoder is one that the current build can
+actually execute.
+
+Target-size compression adds a two-pass software execution phase when no
+hardware encoder is selected. The pass log is temporary and cleaned after the
+final output; hardware encoding remains single-pass for portability.
 
 ## Invariants
 

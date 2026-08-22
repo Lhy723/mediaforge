@@ -14,8 +14,8 @@
         "compress", "compress_media",
         "resize", "resize_media",
         "clip", "clip_media",
-        "extract_audio",
-        "thumbnail", "create_thumbnail",
+        "extract_audio", "extract-audio",
+        "thumbnail", "create_thumbnail", "create-thumbnail",
         "batch",
         "verify", "verify_media",
         "capabilities",
@@ -24,7 +24,7 @@
     },
     "target_operation": {
       "type": "string",
-      "enum": ["convert", "compress", "resize", "clip", "extract_audio", "thumbnail"],
+      "enum": ["convert", "compress", "resize", "clip", "extract_audio", "extract-audio", "thumbnail", "create_thumbnail", "create-thumbnail"],
       "description": "Semantic operation to plan when operation is plan; omitted values are inferred from the supplied fields."
     },
     "input": { "type": "string", "minLength": 1 },
@@ -32,7 +32,7 @@
     "output_format": { "type": "string", "enum": ["mp4", "mkv", "mov", "webm"] },
     "video_codec": { "type": "string", "enum": ["auto", "copy", "h264", "h265", "av1"] },
     "audio_codec": { "type": "string", "enum": ["auto", "copy", "aac", "opus", "mp3"] },
-    "quality": { "type": "string", "enum": ["lossless", "very-high", "high", "balanced", "small", "tiny"] },
+    "quality": { "type": "string", "enum": ["lossless", "very-high", "very_high", "high", "balanced", "small", "tiny"] },
     "hardware": { "type": "string", "enum": ["auto", "cpu", "gpu"] },
     "target_size": { "type": "string", "description": "Approximate target size such as 500MB or 1.5GB." },
     "width": { "type": "integer", "minimum": 1 },
@@ -66,8 +66,8 @@
             "enum": [
               "inspect", "inspect_media", "plan", "plan_media_operation",
               "convert", "convert_media", "compress", "compress_media",
-              "resize", "resize_media", "clip", "clip_media", "extract_audio",
-              "thumbnail", "create_thumbnail", "batch", "verify", "verify_media"
+              "resize", "resize_media", "clip", "clip_media", "extract_audio", "extract-audio",
+              "thumbnail", "create_thumbnail", "create-thumbnail", "batch", "verify", "verify_media"
             ]
           }
         }
