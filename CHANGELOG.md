@@ -10,10 +10,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Rust CLI with semantic media operations backed by FFmpeg and FFprobe.
+- Verb-style Tool operation aliases matching the PRD (`convert_media`,
+  `plan_media_operation`, `create_thumbnail`, and related names).
 - Inspect, plan, convert, compress, resize, clip, audio extraction, thumbnail,
   batch, verification, and capability commands.
 - JSON-over-stdin Tool entrypoint with structured errors and a Raw FFmpeg escape
   hatch.
+- Schema conditions for input/output requirements and an explicit
+  `verify_after_execute` control.
 - Safe output naming, collision detection, dry-run support, and post-operation
   verification.
 - TOML configuration, Tool API schema, Agent Skill, architecture notes, and

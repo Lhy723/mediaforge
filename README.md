@@ -78,7 +78,7 @@ printf '%s\n' '{"operation":"plan","input":"input.mkv","output_format":"mp4"}' \
   | media tool
 ```
 
-The Tool entrypoint accepts the semantic operations above plus `operation: "ffmpeg"` for the explicit escape hatch. Request fields include `dry_run`, `overwrite`, quality, hardware, codecs, and operation-specific arguments. The full contract is [`schemas/tool-api.json`](schemas/tool-api.json).
+The Tool entrypoint accepts the semantic operations above plus `operation: "ffmpeg"` for the explicit escape hatch. For integrations that prefer verb-style names, `inspect_media`, `plan_media_operation`, `convert_media`, `compress_media`, `resize_media`, `clip_media`, `create_thumbnail`, and `verify_media` are stable aliases. Request fields include `dry_run`, `overwrite`, `verify_after_execute`, quality, hardware, codecs, and operation-specific arguments. The full contract is [`schemas/tool-api.json`](schemas/tool-api.json).
 
 ```bash
 printf '%s\n' '{"operation":"convert","input":"input.mkv","output":"output.mp4","dry_run":true}' \
@@ -105,7 +105,7 @@ preferred_codec = "auto"
 preferred_codec = "aac"
 ```
 
-Configuration can provide preferred codecs and quality, but cannot implicitly enable overwrite. Start from [`config.example.toml`](config.example.toml).
+Configuration can provide preferred codecs and quality, but cannot implicitly enable overwrite. `verify_after_execute = false` is available for trusted high-throughput jobs; the response then marks verification as skipped. Start from [`config.example.toml`](config.example.toml).
 
 ## Project map
 

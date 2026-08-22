@@ -52,7 +52,7 @@ When the host can pipe structured input, prefer the Tool entrypoint over constru
 printf '%s\n' '{"operation":"convert","input":"source.mkv","output_format":"mp4","dry_run":true}' | media tool
 ```
 
-The Tool response is always JSON. `operation` accepts the semantic operations in the schema; use `output_format`, `video_codec`, `audio_codec`, `quality`, `hardware`, `dry_run`, and `overwrite` as needed.
+The Tool response is always JSON. `operation` accepts the semantic operations in the schema; use `output_format`, `video_codec`, `audio_codec`, `quality`, `hardware`, `dry_run`, `overwrite`, and `verify_after_execute` as needed. Verb-style aliases such as `convert_media`, `plan_media_operation`, and `verify_media` are also supported.
 
 For an operation that is not covered by the semantic API, use the explicit Raw
 FFmpeg operation and pass the argument vector without shell quoting:

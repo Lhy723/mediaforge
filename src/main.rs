@@ -217,6 +217,7 @@ struct ToolRequest {
     args: Option<Vec<String>>,
     dry_run: Option<bool>,
     overwrite: Option<bool>,
+    verify_after_execute: Option<bool>,
 }
 
 #[derive(Debug, Error)]
@@ -268,6 +269,7 @@ struct Context {
     dry_run: bool,
     overwrite: bool,
     verbose: bool,
+    verify_after_execute: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -292,6 +294,7 @@ fn main() {
         dry_run: cli.dry_run,
         overwrite: cli.overwrite,
         verbose: cli.verbose,
+        verify_after_execute: true,
     };
     let result = dispatch(&context, cli.command);
     match result {
@@ -373,6 +376,8 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
     // Config cannot enable overwrite implicitly: only the request or an explicit
     // CLI flag may relax the core safety policy.
     tool_context.overwrite = context.overwrite || request.overwrite.unwrap_or(false);
+    tool_context.verify_after_execute =
+        request.verify_after_execute.or(config.verify_after_execute).unwrap_or(true);
     let default_video_codec = config
         .video
         .as_ref()
@@ -394,7 +399,7 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
     let hardware = parse_hardware_name(
         request.hardware.or_else(|| config.hardware.clone()).unwrap_or_else(|| "auto".to_string()),
     )?;
-    let operation = request.operation.to_lowercase().replace('-', "_");
+    let operation = normalize_operation(&request.operation);
     let input = || required_input(request.input.clone());
     match operation.as_str() {
         "inspect" => dispatch(&tool_context, Command::Inspect(InputArgs { input: input()? })),
@@ -487,9 +492,24 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
             format!("Unsupported Tool operation: {}", request.operation),
         )
         .with_suggestions(&[
-            "Use inspect, plan, convert, compress, resize, clip, extract_audio, thumbnail, batch, verify, capabilities, or ffmpeg.",
+            "Use a semantic operation such as inspect_media, plan_media_operation, convert_media, compress_media, resize_media, clip_media, extract_audio, create_thumbnail, batch, verify_media, capabilities, or ffmpeg.",
         ])),
     }
+}
+
+fn normalize_operation(value: &str) -> String {
+    match value.to_lowercase().replace('-', "_").as_str() {
+        "inspect_media" => "inspect",
+        "plan_media_operation" => "plan",
+        "convert_media" => "convert",
+        "compress_media" => "compress",
+        "resize_media" => "resize",
+        "clip_media" => "clip",
+        "create_thumbnail" => "thumbnail",
+        "verify_media" => "verify",
+        operation => operation,
+    }
+    .to_string()
 }
 
 fn raw_ffmpeg_command(context: &Context, args: &[String]) -> Result<Value, AppError> {
@@ -818,9 +838,18 @@ fn execute_plan(context: &Context, input: &Path, plan: &OperationPlan) -> Result
     args.extend(plan.args.clone());
     args.push(plan.output.to_string_lossy().to_string());
     run_ffmpeg(context, &args)?;
-    let verification = verify_value(context, input, &plan.output)?;
-    let verification_valid = verification.get("valid").and_then(Value::as_bool).unwrap_or(false);
-    if !verification_valid {
+    let verification = if context.verify_after_execute {
+        verify_value(context, input, &plan.output)?
+    } else {
+        json!({
+            "status": "skipped",
+            "valid": Value::Null,
+            "reason": "disabled_by_configuration",
+            "input": absolute_display(input),
+            "output": absolute_display(&plan.output),
+        })
+    };
+    if verification.get("valid").and_then(Value::as_bool) == Some(false) {
         return Err(AppError::new(
             "VERIFY_FAILED",
             "FFmpeg completed but the output did not pass verification.",
@@ -1081,8 +1110,18 @@ fn execute_simple_plan(
     args.extend(plan.args.clone());
     args.push(plan.output.to_string_lossy().to_string());
     run_ffmpeg(context, &args)?;
-    let verification = verify_operation(context, input, plan)?;
-    if !verification.get("valid").and_then(Value::as_bool).unwrap_or(false) {
+    let verification = if context.verify_after_execute {
+        verify_operation(context, input, plan)?
+    } else {
+        json!({
+            "status": "skipped",
+            "valid": Value::Null,
+            "reason": "disabled_by_configuration",
+            "input": absolute_display(input),
+            "output": absolute_display(&plan.output),
+        })
+    };
+    if verification.get("valid").and_then(Value::as_bool) == Some(false) {
         return Err(AppError::new(
             "VERIFY_FAILED",
             "Operation completed but the output did not pass verification.",
@@ -1216,6 +1255,7 @@ fn verify_value(context: &Context, input: &Path, output: &Path) -> Result<Value,
     let video_present = first_stream(&output_streams, "video").is_some();
     let audio_present = first_stream(&output_streams, "audio").is_some();
     let source_video = first_stream(&source_streams, "video");
+    let audio_expected = first_stream(&source_streams, "audio").is_some();
     let output_video = first_stream(&output_streams, "video");
     let resolution_match = match (source_video, output_video) {
         (Some(a), Some(b)) => {
@@ -1224,9 +1264,10 @@ fn verify_value(context: &Context, input: &Path, output: &Path) -> Result<Value,
         _ => true,
     };
     let decode_errors = decode_check(context, output).is_err();
-    let valid = duration_match && video_present && !decode_errors;
+    let audio_match = !audio_expected || audio_present;
+    let valid = duration_match && video_present && audio_match && !decode_errors;
     Ok(
-        json!({"status":"success","valid":valid,"input":absolute_display(input),"output":absolute_display(output),"checks":{"readable":true,"duration_match":duration_match,"video_present":video_present,"audio_present":audio_present,"resolution_match":resolution_match,"decode_errors":decode_errors},"warnings": if audio_present { json!([]) } else { json!(["Output has no audio stream."]) }}),
+        json!({"status":"success","valid":valid,"input":absolute_display(input),"output":absolute_display(output),"checks":{"readable":true,"duration_match":duration_match,"video_present":video_present,"audio_present":audio_present,"audio_expected":audio_expected,"audio_match":audio_match,"resolution_match":resolution_match,"decode_errors":decode_errors},"warnings": if audio_match { json!([]) } else { json!(["Output is missing the input audio stream."]) }}),
     )
 }
 
@@ -1826,10 +1867,14 @@ mod tests {
     #[test]
     fn parses_agent_tool_request_and_aliases() {
         let request: ToolRequest = serde_json::from_str(
-            r#"{"operation":"extract-audio","input":"in.mp4","format":"flac","dry_run":true}"#,
+            r#"{"operation":"extract-audio","input":"in.mp4","format":"flac","dry_run":true,"verify_after_execute":false}"#,
         )
         .unwrap();
         assert_eq!(request.operation, "extract-audio");
+        assert_eq!(normalize_operation("convert_media"), "convert");
+        assert_eq!(normalize_operation("plan-media-operation"), "plan");
+        assert_eq!(normalize_operation("create_thumbnail"), "thumbnail");
+        assert_eq!(request.verify_after_execute, Some(false));
         assert_eq!(
             parse_quality_name("very_high".to_string()).unwrap() as u8,
             Quality::VeryHigh as u8
