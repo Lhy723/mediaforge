@@ -1321,6 +1321,9 @@ fn resize_command(context: &Context, args: &ResizeArgs) -> Result<Value, AppErro
     if args.width.is_some() && args.resolution.is_some() {
         return Err(AppError::new("INVALID_ARGUMENT", "Use only one of --width or --resolution."));
     }
+    if args.width == Some(0) {
+        return Err(AppError::new("INVALID_ARGUMENT", "Resize width must be greater than zero."));
+    }
     let height = args.resolution.as_deref().map(parse_resolution).transpose()?;
     let filter = if let Some(width) = args.width {
         format!("scale={width}:-2")
@@ -2394,24 +2397,43 @@ fn subtitle_codec_args(container: &str, streams: &[Value]) -> Vec<String> {
 fn parse_resolution(value: &str) -> Result<u32, AppError> {
     let value = value.to_lowercase();
     let value = value.strip_suffix('p').unwrap_or(&value);
-    value
+    let resolution = value
         .parse::<u32>()
-        .map_err(|_| AppError::new("INVALID_ARGUMENT", format!("Invalid resolution: {value}")))
+        .map_err(|_| AppError::new("INVALID_ARGUMENT", format!("Invalid resolution: {value}")))?;
+    if resolution == 0 {
+        return Err(AppError::new("INVALID_ARGUMENT", "Resolution must be greater than zero."));
+    }
+    Ok(resolution)
 }
 fn parse_thumbnail_time(value: &str, duration: Option<f64>) -> Result<String, AppError> {
     if let Some(percent) = value.strip_suffix('%') {
         let percent = percent
             .parse::<f64>()
             .map_err(|_| AppError::new("INVALID_ARGUMENT", "Invalid percentage for --at."))?;
+        if !(0.0..=100.0).contains(&percent) {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Thumbnail percentage must be between 0% and 100%.",
+            ));
+        }
         let duration = duration.ok_or_else(|| {
             AppError::new(
                 "INVALID_MEDIA",
                 "Percentage thumbnail position requires a known duration.",
             )
         })?;
-        return Ok(format!("{:.3}", duration * percent / 100.0));
+        // A timestamp exactly at the container duration is often past the last
+        // decoded frame. Keep the final percentage inside a conservative half
+        // second guard band so short files still yield a thumbnail.
+        let last_decodable = (duration - 0.5).max(0.0);
+        let position = (duration * percent / 100.0).min(last_decodable);
+        return Ok(format!("{position:.3}"));
     }
-    parse_time_seconds(value).map(|_| value.to_string())
+    let seconds = parse_time_seconds(value)?;
+    if seconds < 0.0 {
+        return Err(AppError::new("INVALID_ARGUMENT", "Thumbnail position must not be negative."));
+    }
+    Ok(value.to_string())
 }
 fn parse_time_seconds(value: &str) -> Result<f64, AppError> {
     if let Ok(seconds) = value.parse::<f64>() {
@@ -2448,6 +2470,9 @@ fn parse_size(value: &str) -> Result<u64, AppError> {
         .trim()
         .parse::<f64>()
         .map_err(|_| AppError::new("INVALID_ARGUMENT", format!("Invalid size: {value}")))?;
+    if !number.is_finite() || number <= 0.0 {
+        return Err(AppError::new("INVALID_ARGUMENT", "Size must be greater than zero."));
+    }
     Ok((number * multiplier) as u64)
 }
 
@@ -2624,6 +2649,14 @@ mod tests {
         assert_eq!(stream_count(&streams, "video"), 1);
         assert_eq!(stream_count(&streams, "subtitle"), 2);
         assert_eq!(subtitle_strategy("mp4", &streams), "convert_to_mov_text");
+    }
+
+    #[test]
+    fn validates_numeric_ranges_and_clamps_thumbnail_end() {
+        assert_eq!(parse_thumbnail_time("100%", Some(3.0)).unwrap(), "2.500");
+        assert!(parse_thumbnail_time("101%", Some(3.0)).is_err());
+        assert!(parse_resolution("0p").is_err());
+        assert!(parse_size("0MB").is_err());
     }
 
     #[test]
