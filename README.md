@@ -1,7 +1,6 @@
 # MediaForge
 
 [![CI](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/mediaforge.svg)](https://crates.io/crates/mediaforge)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 MediaForge is an agent-native media processing toolkit. It gives an AI agent a small, deterministic control plane over [FFmpeg](https://ffmpeg.org/) and FFprobe: inspect media, plan an operation, execute it safely, and verify the result. It is a CLI and a JSON-over-stdin tool—not a frontend application.
