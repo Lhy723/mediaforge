@@ -40,6 +40,14 @@ CLI arguments or one JSON Tool request
   that are not yet represented by the semantic API, but it does not bypass the
   process boundary or the JSON response contract.
 
+## Hardware selection
+
+Hardware encoding is opt-in. `auto` deliberately selects software encoding so
+the same request remains predictable across hosts. `gpu` probes FFmpeg's
+available hardware encoders for the requested codec and records the selected
+encoder in the plan. A runtime failure to create the hardware session becomes
+the structured `HARDWARE_UNAVAILABLE` error with a CPU fallback suggestion.
+
 ## Invariants
 
 1. A source path is never selected as an output path.

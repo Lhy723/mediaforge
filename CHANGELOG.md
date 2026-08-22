@@ -18,6 +18,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   hatch.
 - Schema conditions for input/output requirements and an explicit
   `verify_after_execute` control.
+- Explicit GPU requests now probe available hardware encoders and return a
+  structured `HARDWARE_UNAVAILABLE` error when the runtime cannot create a
+  hardware session.
 - Safe output naming, collision detection, dry-run support, and post-operation
   verification.
 - TOML configuration, Tool API schema, Agent Skill, architecture notes, and

@@ -69,6 +69,6 @@ explicit request field or CLI flag.
 
 ## Error handling
 
-JSON errors contain `status`, `code`, `message`, `details`, and `suggestions`. Treat the following as actionable: `FILE_NOT_FOUND`, `INVALID_MEDIA`, `INVALID_ARGUMENT`, `UNSUPPORTED_FORMAT`, `UNSUPPORTED_CODEC`, `ENCODER_UNAVAILABLE`, `OUTPUT_CONFLICT`, `OUTPUT_UNWRITABLE`, `FFMPEG_NOT_FOUND`, `FFMPEG_FAILED`, and `VERIFY_FAILED`.
+JSON errors contain `status`, `code`, `message`, `details`, and `suggestions`. Treat the following as actionable: `FILE_NOT_FOUND`, `INVALID_MEDIA`, `INVALID_ARGUMENT`, `UNSUPPORTED_FORMAT`, `UNSUPPORTED_CODEC`, `ENCODER_UNAVAILABLE`, `DECODER_UNAVAILABLE`, `HARDWARE_UNAVAILABLE`, `OUTPUT_CONFLICT`, `OUTPUT_UNWRITABLE`, `FFMPEG_NOT_FOUND`, `FFMPEG_FAILED`, and `VERIFY_FAILED`.
 
 Raw FFmpeg is an escape hatch only when MediaForge has no semantic operation for the user request or the user explicitly requests a filter graph or encoder flag.

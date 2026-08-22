@@ -11,6 +11,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 const DEFAULT_AUDIO_BITRATE: &str = "256k";
+const H264_HARDWARE_ENCODERS: &[&str] =
+    &["h264_videotoolbox", "h264_nvenc", "h264_qsv", "h264_amf"];
+const HEVC_HARDWARE_ENCODERS: &[&str] =
+    &["hevc_videotoolbox", "hevc_nvenc", "hevc_qsv", "hevc_amf"];
+const AV1_HARDWARE_ENCODERS: &[&str] = &["av1_nvenc", "av1_qsv", "av1_amf"];
 
 #[derive(Parser, Debug)]
 #[command(name = "media", version, about = "Deterministic media tooling for AI agents")]
@@ -60,6 +65,8 @@ struct PlanArgs {
     video_codec: String,
     #[arg(long, value_name = "CODEC", default_value = "auto")]
     audio_codec: String,
+    #[arg(long, default_value = "auto", value_enum)]
+    hardware: HardwareMode,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -286,6 +293,14 @@ struct OperationPlan {
     strategy: String,
 }
 
+#[derive(Debug, Clone)]
+struct HardwareSelection {
+    requested: String,
+    selected: String,
+    encoder: Option<String>,
+    reason: String,
+}
+
 fn main() {
     let cli = Cli::parse();
     let tool_mode = matches!(&cli.command, Command::Tool(_));
@@ -411,6 +426,7 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 output: request.output.clone().map(PathBuf::from),
                 video_codec,
                 audio_codec,
+                hardware,
             }),
         ),
         "convert" => dispatch(
@@ -661,6 +677,7 @@ fn plan_command(context: &Context, args: &PlanArgs) -> Result<Value, AppError> {
         args.output.as_deref(),
         &args.video_codec,
         &args.audio_codec,
+        args.hardware,
     )?;
     let mut value = plan.value;
     if let Some(object) = value.as_object_mut() {
@@ -678,6 +695,7 @@ fn convert_command(context: &Context, args: &ConvertArgs) -> Result<Value, AppEr
         args.output.as_deref(),
         &args.video_codec,
         &args.audio_codec,
+        args.hardware,
     )?;
     if context.dry_run {
         let mut value = plan.value;
@@ -690,6 +708,93 @@ fn convert_command(context: &Context, args: &ConvertArgs) -> Result<Value, AppEr
     execute_plan(context, &args.input, &plan)
 }
 
+fn select_video_hardware(
+    context: &Context,
+    requested: HardwareMode,
+    codec: &str,
+    needs_video_encode: bool,
+) -> Result<HardwareSelection, AppError> {
+    let requested_name = format_hardware(requested).to_string();
+    if !needs_video_encode {
+        return Ok(HardwareSelection {
+            requested: requested_name,
+            selected: "not_applicable".to_string(),
+            encoder: None,
+            reason: "Video is copied, so no encoder hardware is required.".to_string(),
+        });
+    }
+
+    match requested {
+        HardwareMode::Cpu => Ok(HardwareSelection {
+            requested: requested_name,
+            selected: "cpu".to_string(),
+            encoder: None,
+            reason: "Software encoding was explicitly requested.".to_string(),
+        }),
+        HardwareMode::Auto => Ok(HardwareSelection {
+            requested: requested_name,
+            selected: "cpu".to_string(),
+            encoder: None,
+            reason: "Auto uses deterministic software encoding; request gpu to opt in to a hardware encoder.".to_string(),
+        }),
+        HardwareMode::Gpu => {
+            let normalized_codec = preferred_codec(codec, "h264");
+            let candidates = hardware_encoder_candidates(&normalized_codec);
+            if candidates.is_empty() {
+                return Err(AppError::new(
+                    "UNSUPPORTED_HARDWARE",
+                    format!("No hardware encoder mapping exists for video codec {normalized_codec}."),
+                )
+                .with_details(json!({
+                    "requested_hardware": "gpu",
+                    "requested_codec": normalized_codec,
+                }))
+                .with_suggestions(&[
+                    "Use --hardware cpu or choose h264, h265, or av1.",
+                    "Run media capabilities to inspect available encoders.",
+                ]));
+            }
+            let encoder_text = run_program("ffmpeg", &["-hide_banner", "-encoders"], context.verbose)?
+                .stdout;
+            let selected_encoder = candidates.iter().find(|candidate| {
+                encoder_text
+                    .lines()
+                    .any(|line| line.split_whitespace().any(|token| token == **candidate))
+            });
+            let Some(selected_encoder) = selected_encoder else {
+                return Err(AppError::new(
+                    "ENCODER_UNAVAILABLE",
+                    format!("No available GPU encoder was found for {normalized_codec}."),
+                )
+                .with_details(json!({
+                    "requested_hardware": "gpu",
+                    "requested_codec": normalized_codec,
+                    "candidates": candidates,
+                }))
+                .with_suggestions(&[
+                    "Use --hardware cpu for a software encode.",
+                    "Run media capabilities to inspect available encoders.",
+                ]));
+            };
+            Ok(HardwareSelection {
+                requested: requested_name,
+                selected: "gpu".to_string(),
+                encoder: Some((*selected_encoder).to_string()),
+                reason: format!("Using the available {} hardware encoder.", selected_encoder),
+            })
+        }
+    }
+}
+
+fn hardware_encoder_candidates(codec: &str) -> &'static [&'static str] {
+    match codec {
+        "h264" => H264_HARDWARE_ENCODERS,
+        "h265" | "hevc" => HEVC_HARDWARE_ENCODERS,
+        "av1" => AV1_HARDWARE_ENCODERS,
+        _ => &[],
+    }
+}
+
 fn build_convert_plan(
     context: &Context,
     input: &Path,
@@ -697,6 +802,7 @@ fn build_convert_plan(
     output: Option<&Path>,
     video_codec: &str,
     audio_codec: &str,
+    hardware: HardwareMode,
 ) -> Result<OperationPlan, AppError> {
     ensure_input(input)?;
     let probe = probe_media(input, context.verbose)?;
@@ -737,6 +843,8 @@ fn build_convert_plan(
         audio_codec == "auto" && is_audio_compatible(&target_container, &source_audio_codec);
     let video_action = if video_compatible { "copy" } else { "transcode" };
     let audio_action = if audio_compatible { "copy" } else { "transcode" };
+    let hardware_selection =
+        select_video_hardware(context, hardware, video_codec, video_action == "transcode")?;
     let strategy = match (video_action, audio_action) {
         ("copy", "copy") if source_container == target_container => "copy",
         ("copy", "copy") => "remux",
@@ -784,7 +892,11 @@ fn build_convert_plan(
     if video_action == "copy" {
         ffmpeg_args.extend(["-c:v".to_string(), "copy".to_string()]);
     } else {
-        ffmpeg_args.extend(video_encode_args(video_codec, "balanced")?);
+        ffmpeg_args.extend(video_encode_args(
+            video_codec,
+            "balanced",
+            hardware_selection.encoder.as_deref(),
+        )?);
     }
     if audio_action == "copy" {
         ffmpeg_args.extend(["-c:a".to_string(), "copy".to_string()]);
@@ -807,7 +919,7 @@ fn build_convert_plan(
         "audio": {"action": audio_action, "from": source_audio_codec, "to": if audio_action == "copy" { Value::Null } else { json!(preferred_codec(audio_codec, "aac")) }},
         "subtitle": {"action": "preserve_when_compatible"},
         "metadata": {"action": "preserve"},
-        "hardware": {"requested": "auto", "selected": "cpu"},
+        "hardware": {"requested": hardware_selection.requested, "selected": hardware_selection.selected, "encoder": hardware_selection.encoder, "reason": hardware_selection.reason},
         "quality_loss": quality_loss,
         "reason": reasons,
         "warnings": subtitle_warnings(&streams, &target_container),
@@ -879,14 +991,14 @@ fn compress_command(context: &Context, args: &CompressArgs) -> Result<Value, App
     )
     .ok_or_else(|| AppError::new("INVALID_MEDIA", "No video stream was found."))?;
     let duration = probe.duration_seconds.unwrap_or(0.0);
-    let mut ffmpeg_args = vec![
-        "-map".to_string(),
-        "0:v:0".to_string(),
-        "-map".to_string(),
-        "0:a?".to_string(),
-        "-c:v".to_string(),
-        "libx264".to_string(),
-    ];
+    let hardware_selection = select_video_hardware(context, args.hardware, "h264", true)?;
+    let mut ffmpeg_args =
+        vec!["-map".to_string(), "0:v:0".to_string(), "-map".to_string(), "0:a?".to_string()];
+    ffmpeg_args.extend(video_encode_args(
+        "h264",
+        quality_name(args.quality),
+        hardware_selection.encoder.as_deref(),
+    )?);
     let mut notes = vec![format!(
         "Compressing {} video with the {:?} quality preset.",
         video.get("codec_name").and_then(Value::as_str).unwrap_or("unknown"),
@@ -911,20 +1023,27 @@ fn compress_command(context: &Context, args: &CompressArgs) -> Result<Value, App
         }
         Some(Err(error)) => return Err(error),
         None => {
-            let crf = match args.quality {
-                Quality::Lossless => 0,
-                Quality::VeryHigh => 18,
-                Quality::High => 21,
-                Quality::Balanced => 24,
-                Quality::Small => 28,
-                Quality::Tiny => 32,
-            };
-            ffmpeg_args.extend([
-                "-crf".to_string(),
-                crf.to_string(),
-                "-preset".to_string(),
-                "medium".to_string(),
-            ]);
+            if hardware_selection.encoder.is_some() {
+                ffmpeg_args.extend([
+                    "-b:v".to_string(),
+                    hardware_quality_bitrate(args.quality).to_string(),
+                ]);
+            } else {
+                let crf = match args.quality {
+                    Quality::Lossless => 0,
+                    Quality::VeryHigh => 18,
+                    Quality::High => 21,
+                    Quality::Balanced => 24,
+                    Quality::Small => 28,
+                    Quality::Tiny => 32,
+                };
+                ffmpeg_args.extend([
+                    "-crf".to_string(),
+                    crf.to_string(),
+                    "-preset".to_string(),
+                    "medium".to_string(),
+                ]);
+            }
         }
     }
     ffmpeg_args.extend([
@@ -934,7 +1053,7 @@ fn compress_command(context: &Context, args: &CompressArgs) -> Result<Value, App
         DEFAULT_AUDIO_BITRATE.to_string(),
     ]);
     let plan = OperationPlan {
-        value: json!({"status":"success","operation":"compress","input":absolute_display(&args.input),"output":absolute_display(&output),"strategy":"transcode","quality":args.quality,"quality_loss":"video_and_audio","reason":notes,"hardware":{"requested":format_hardware(args.hardware),"selected":"cpu"},"ffmpeg_args":ffmpeg_args}),
+        value: json!({"status":"success","operation":"compress","input":absolute_display(&args.input),"output":absolute_display(&output),"strategy":"transcode","quality":args.quality,"quality_loss":"video_and_audio","reason":notes,"hardware":{"requested":hardware_selection.requested,"selected":hardware_selection.selected,"encoder":hardware_selection.encoder,"reason":hardware_selection.reason},"ffmpeg_args":ffmpeg_args}),
         output,
         args: ffmpeg_args,
         strategy: "transcode".to_string(),
@@ -1371,14 +1490,24 @@ fn run_program(program: &str, args: &[&str], verbose: bool) -> Result<ProcessRes
                 "ENCODER_UNAVAILABLE"
             } else if stderr.contains("Unknown decoder") {
                 "DECODER_UNAVAILABLE"
+            } else if stderr.contains("Cannot create compression session")
+                || stderr.contains("No capable devices found")
+                || stderr.contains("hardware encoder")
+            {
+                "HARDWARE_UNAVAILABLE"
             } else {
                 "FFMPEG_FAILED"
             };
-        return Err(AppError::new(
-            code,
-            format!("{program} exited with status {}.", output.status),
-        )
-        .with_details(json!({"command":program,"arguments":args,"stderr":stderr})));
+        let error = AppError::new(code, format!("{program} exited with status {}.", output.status))
+            .with_details(json!({"command":program,"arguments":args,"stderr":stderr}));
+        return if code == "HARDWARE_UNAVAILABLE" {
+            Err(error.with_suggestions(&[
+                "Retry with --hardware cpu.",
+                "Run media capabilities to inspect available hardware encoders.",
+            ]))
+        } else {
+            Err(error)
+        };
     }
     Ok(ProcessResult { stdout, stderr })
 }
@@ -1615,8 +1744,15 @@ fn preferred_codec(requested: &str, fallback: &str) -> String {
         requested.to_string()
     }
 }
-fn video_encode_args(codec: &str, quality: &str) -> Result<Vec<String>, AppError> {
+fn video_encode_args(
+    codec: &str,
+    quality: &str,
+    hardware_encoder: Option<&str>,
+) -> Result<Vec<String>, AppError> {
     let codec = preferred_codec(codec, "h264");
+    if let Some(encoder) = hardware_encoder {
+        return Ok(vec!["-c:v".into(), encoder.into()]);
+    }
     match codec.as_str() {
         "h264" => Ok(vec![
             "-c:v".into(),
@@ -1645,6 +1781,28 @@ fn video_encode_args(codec: &str, quality: &str) -> Result<Vec<String>, AppError
         other => {
             Err(AppError::new("UNSUPPORTED_CODEC", format!("Unsupported video codec: {other}")))
         }
+    }
+}
+
+fn quality_name(quality: Quality) -> &'static str {
+    match quality {
+        Quality::Lossless => "lossless",
+        Quality::VeryHigh => "very-high",
+        Quality::High => "high",
+        Quality::Balanced => "balanced",
+        Quality::Small => "small",
+        Quality::Tiny => "tiny",
+    }
+}
+
+fn hardware_quality_bitrate(quality: Quality) -> &'static str {
+    match quality {
+        Quality::Lossless => "12M",
+        Quality::VeryHigh => "8M",
+        Quality::High => "5M",
+        Quality::Balanced => "3M",
+        Quality::Small => "2M",
+        Quality::Tiny => "1M",
     }
 }
 fn audio_encode_args(codec: &str, bitrate: &str) -> Result<Vec<String>, AppError> {
@@ -1875,6 +2033,8 @@ mod tests {
         assert_eq!(normalize_operation("plan-media-operation"), "plan");
         assert_eq!(normalize_operation("create_thumbnail"), "thumbnail");
         assert_eq!(request.verify_after_execute, Some(false));
+        assert!(hardware_encoder_candidates("h264").contains(&"h264_videotoolbox"));
+        assert_eq!(hardware_quality_bitrate(Quality::Balanced), "3M");
         assert_eq!(
             parse_quality_name("very_high".to_string()).unwrap() as u8,
             Quality::VeryHigh as u8

@@ -107,6 +107,8 @@ preferred_codec = "aac"
 
 Configuration can provide preferred codecs and quality, but cannot implicitly enable overwrite. `verify_after_execute = false` is available for trusted high-throughput jobs; the response then marks verification as skipped. Start from [`config.example.toml`](config.example.toml).
 
+Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding, while `--hardware gpu` probes FFmpeg's available hardware encoder for the requested codec. If the runtime cannot create a hardware session, MediaForge returns `HARDWARE_UNAVAILABLE` with a CPU fallback suggestion.
+
 ## Project map
 
 - [`schemas/tool-api.json`](schemas/tool-api.json) — machine-readable Tool API contract.
