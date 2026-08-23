@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+
+trap 'status=$?; echo "acceptance: failed at line ${LINENO}: ${BASH_COMMAND}" >&2; exit "$status"' ERR
 
 BIN="${1:-target/release/media}"
 
