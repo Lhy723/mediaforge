@@ -57,6 +57,10 @@ schema, and the Raw FFmpeg dry-run escape hatch.
 The static documentation page lives in [`docs/index.html`](index.html). It is
 deliberately dependency-free so it can be published with GitHub Pages or
 served from an artifact host without turning MediaForge into a frontend app.
+The repository workflow publishes it at
+[`lhy723.github.io/mediaforge`](https://lhy723.github.io/mediaforge/). Pushes to
+`main` deploy automatically; `workflow_dispatch` is available for a manual
+deployment from another branch.
 
 ## Configuration during development
 
