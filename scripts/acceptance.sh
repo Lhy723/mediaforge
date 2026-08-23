@@ -225,6 +225,15 @@ assert_json "$WORK_DIR/safety.json" "v['status'] == 'planned' and v['output'].en
 assert_json "$WORK_DIR/safety-execute.json" "v['status'] == 'success' and v['output'].endswith('existing_1.mp4')"
 [[ ! -s "$WORK_DIR/existing.mp4" ]] || { echo "existing output was overwritten" >&2; exit 1; }
 
+printf 'replace-me\n' > "$WORK_DIR/explicit-overwrite.mp4"
+"$BIN" convert "$SRC" --to mp4 --output "$WORK_DIR/explicit-overwrite.mp4" --overwrite --json \
+  > "$WORK_DIR/explicit-overwrite.json"
+assert_json "$WORK_DIR/explicit-overwrite.json" "v['status'] == 'success' and v['output'].endswith('explicit-overwrite.mp4')"
+[[ "$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$WORK_DIR/explicit-overwrite.mp4")" == "h264" ]] || {
+  echo "explicit overwrite did not replace the target with valid media" >&2
+  exit 1
+}
+
 if "$BIN" convert "$SRC" --to mp4 --output "$SRC" --dry-run --json > "$WORK_DIR/output-conflict.json"; then
   echo "convert unexpectedly accepted identical input and output paths" >&2
   exit 1
