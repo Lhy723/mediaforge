@@ -4237,15 +4237,16 @@ fn program_available(program: &str) -> bool {
         #[cfg(windows)]
         {
             if Path::new(program).extension().is_some() {
-                return false;
+                false
+            } else {
+                let path_ext =
+                    std::env::var_os("PATHEXT").unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".into());
+                path_ext
+                    .to_string_lossy()
+                    .split(';')
+                    .filter(|extension| !extension.is_empty())
+                    .any(|extension| directory.join(format!("{program}{extension}")).is_file())
             }
-            let path_ext =
-                std::env::var_os("PATHEXT").unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".into());
-            return path_ext
-                .to_string_lossy()
-                .split(';')
-                .filter(|extension| !extension.is_empty())
-                .any(|extension| directory.join(format!("{program}{extension}")).is_file());
         }
         #[cfg(not(windows))]
         {
