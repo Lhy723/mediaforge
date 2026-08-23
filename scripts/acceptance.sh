@@ -67,7 +67,7 @@ print(digest.hexdigest())
 PY
 }
 
-json_path() {
+native_path() {
   if command -v cygpath >/dev/null; then
     cygpath -m "$1"
   else
@@ -89,8 +89,8 @@ assert_json "$WORK_DIR/plan-compress.json" "v['status'] == 'planned' and v['oper
 ffmpeg -hide_banner -loglevel error -i "$SRC" -c copy "$WORK_DIR/source.mov"
 ffmpeg -hide_banner -loglevel error -i "$SRC" -c copy "$WORK_DIR/source.mkv"
 ffmpeg -hide_banner -loglevel error -i "$SRC" -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -c:a libopus "$WORK_DIR/source.webm"
-SRC_JSON="$(json_path "$SRC")"
-SOURCE_MKV_JSON="$(json_path "$WORK_DIR/source.mkv")"
+SRC_JSON="$(native_path "$SRC")"
+SOURCE_MKV_JSON="$(native_path "$WORK_DIR/source.mkv")"
 for media in "$SRC" "$WORK_DIR/source.mkv" "$WORK_DIR/source.mov" "$WORK_DIR/source.webm"; do
   name="$(basename "$media" | tr '.' '-')"
   "$BIN" inspect "$media" --json > "$WORK_DIR/inspect-$name.json"
@@ -342,11 +342,13 @@ fi
 assert_json "$WORK_DIR/invalid-cli.json" "v['status'] == 'error' and v['code'] == 'INVALID_ARGUMENT' and isinstance(v['details'], dict) and len(v['suggestions']) > 0"
 
 MISSING_DIR="$WORK_DIR/not-created"
-"$BIN" convert "$SRC" --to mp4 --output "$MISSING_DIR/output.mp4" --dry-run --json > "$WORK_DIR/dry-run.json"
+MISSING_OUTPUT="$(native_path "$MISSING_DIR/output.mp4")"
+"$BIN" convert "$SRC" --to mp4 --output "$MISSING_OUTPUT" --dry-run --json > "$WORK_DIR/dry-run.json"
 [[ ! -d "$MISSING_DIR" ]] || { echo "dry-run created an output directory" >&2; exit 1; }
 
 touch "$WORK_DIR/not-a-directory"
-if "$BIN" convert "$SRC" --to mp4 --output "$WORK_DIR/not-a-directory/output.mp4" --json > "$WORK_DIR/unwritable.json"; then
+UNWRITABLE_OUTPUT="$(native_path "$WORK_DIR/not-a-directory/output.mp4")"
+if "$BIN" convert "$SRC" --to mp4 --output "$UNWRITABLE_OUTPUT" --json > "$WORK_DIR/unwritable.json"; then
   echo "convert unexpectedly accepted a file as the output parent" >&2
   exit 1
 fi
@@ -364,7 +366,8 @@ preferred_codec = "h264"
 [audio]
 preferred_codec = "aac"
 EOF
-MEDIAFORGE_CONFIG="$WORK_DIR/config.toml" "$BIN" compress "$SRC" --dry-run --json > "$WORK_DIR/configured.json"
+CONFIG_PATH="$(native_path "$WORK_DIR/config.toml")"
+MEDIAFORGE_CONFIG="$CONFIG_PATH" "$BIN" compress "$SRC" --dry-run --json > "$WORK_DIR/configured.json"
 assert_json "$WORK_DIR/configured.json" "v['quality'] == 'tiny' and v['hardware']['requested'] == 'cpu'"
 
 cp "$SRC" "$WORK_DIR/batch-input/one.mp4"
