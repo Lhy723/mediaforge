@@ -380,7 +380,8 @@ assert_json "$WORK_DIR/configured.json" "v['quality'] == 'tiny' and v['hardware'
 cp "$SRC" "$WORK_DIR/batch-input/one.mp4"
 cp "$SRC" "$WORK_DIR/batch-input/two.mp4"
 printf 'not media\n' > "$WORK_DIR/batch-input/broken.mp4"
-"$BIN" batch "$WORK_DIR/batch-input/*.mp4" --convert mp4 --output-dir "$WORK_DIR/batch-output" --json > "$WORK_DIR/batch.json"
+BATCH_GLOB="$(native_path "$WORK_DIR/batch-input")/*.mp4"
+"$BIN" batch "$BATCH_GLOB" --convert mp4 --output-dir "$WORK_DIR/batch-output" --json > "$WORK_DIR/batch.json"
 assert_json "$WORK_DIR/batch.json" "v['status'] == 'partial_success' and v['total'] == 3 and v['success'] == 2 and v['failed'] == 1"
 
 mkdir -p "$WORK_DIR/batch-recursive/nested" "$WORK_DIR/batch-recursive-output"
