@@ -69,7 +69,14 @@ PY
 
 native_path() {
   if command -v cygpath >/dev/null; then
-    cygpath -m "$1"
+    local converted
+    if converted="$(cygpath -m "$1" 2>/dev/null)"; then
+      printf '%s' "$converted"
+    else
+      local parent="${1%/*}"
+      local leaf="${1##*/}"
+      printf '%s/%s' "$(cygpath -m "$parent")" "$leaf"
+    fi
   else
     printf '%s' "$1"
   fi
