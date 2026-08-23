@@ -3,6 +3,8 @@
 [![CI](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+文档网站：[MediaForge GitHub Pages](https://lhy723.github.io/mediaforge/)
+
 MediaForge 是一个面向 AI Agent 的媒体处理工具。它为 [FFmpeg](https://ffmpeg.org/) 和 FFprobe 提供小而确定性的控制层：检查媒体、规划操作、安全执行并验证结果。它是 CLI 和基于 stdin/stdout 的 JSON 工具，不是前端项目或 GUI 应用。
 
 MediaForge is an agent-native media processing toolkit. It gives an AI agent a small, deterministic control plane over FFmpeg and FFprobe: inspect media, plan an operation, execute it safely, and verify the result.
@@ -215,6 +217,7 @@ Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding,
 - [`docs/architecture.md`](docs/architecture.md) — control-plane design and invariants.
 - [`docs/development.md`](docs/development.md) — local development, testing, and release notes.
 - [`scripts/install.sh`](scripts/install.sh) and [`scripts/install.ps1`](scripts/install.ps1) — prebuilt binary installers for ordinary users.
+- [MediaForge GitHub Pages](https://lhy723.github.io/mediaforge/) — deployed static introduction and Agent Tool API guide.
 - [`docs/MediaForge-PRD-v1.0.md`](docs/MediaForge-PRD-v1.0.md) — the product requirements document supplied for this project.
 - [`docs/prd-v1-compliance.md`](docs/prd-v1-compliance.md) — requirement-to-test traceability for the V1 release gate.
 - [`docs/index.html`](docs/index.html) — static agent-facing documentation page and API examples.
