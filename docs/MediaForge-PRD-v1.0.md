@@ -5,7 +5,7 @@
 **产品定位：** 面向 AI Agent 的确定性媒体处理工具
 **目标形态：** CLI + Skill / Tool API
 **核心引擎：** FFmpeg + FFprobe
-**目标平台：** macOS、Linux，后续支持 Windows
+**目标平台：** macOS、Linux、Windows（x64）
 **目标用户：** AI Agent、开发者、自动化工作流构建者
 
 ---

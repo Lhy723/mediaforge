@@ -53,6 +53,10 @@ elapsed time, and an estimated remaining time.
 - **Process output** is consumed incrementally. Failure diagnostics retain a
   bounded stderr tail so long FFmpeg jobs cannot grow agent memory without
   limit.
+- **Portability:** the Rust process boundary is shared across macOS, Linux, and
+  Windows. Only host integration varies: Windows resolves `.exe`/`PATHEXT`
+  tools, uses `APPDATA` for config fallback, and treats Unix-only optical tools
+  as unavailable capabilities.
 
 ## Hardware selection
 

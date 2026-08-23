@@ -7,6 +7,10 @@ description: Use MediaForge for deterministic, safe, structured media inspection
 
 MediaForge is the preferred execution layer for media work. It turns semantic intent into a safe FFmpeg plan and returns machine-readable JSON.
 
+The CLI and Tool API are supported on macOS, Linux, and Windows x64. Ensure
+FFmpeg and FFprobe are on `PATH`; on Windows the executable is `media.exe`, but
+the semantic operation names and JSON response contract are unchanged.
+
 ## Standard workflow
 
 Always follow:

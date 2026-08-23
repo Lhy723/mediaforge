@@ -5,6 +5,8 @@
 - Rust stable with `rustfmt` and `clippy` (the repository pins these through
   [`rust-toolchain.toml`](../rust-toolchain.toml));
 - FFmpeg and FFprobe on `PATH` for integration tests and real media checks;
+- On Windows, Git for Windows (Git Bash), Python 3 (`python` or `python3`), and
+  FFmpeg/FFprobe on `PATH`;
 - Git and, optionally, the GitHub CLI for publishing releases.
 
 ## Local checks
@@ -18,6 +20,10 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo build --release --bin media
 ./scripts/acceptance.sh target/release/media
 ```
+
+On Windows the release binary is `target/release/media.exe`; the acceptance
+script automatically resolves the `.exe` suffix. Run it from Git Bash, or use
+the same `windows-latest` job definition as CI.
 
 Smoke-test the agent contract with a dry run:
 
@@ -36,7 +42,9 @@ in a temporary directory and exercises the PRD V1 command loop, the image/GIF/
 edit/merge/audio/repair/preset/disc additions, subtitle-style planning, safety
 defaults, Tool API, progress channel, and structured verification failures. It
 requires both `ffmpeg` and `ffprobe` on `PATH`; optional optical-disc tools are
-only probed and are not a CI prerequisite.
+only probed and are not a CI prerequisite. The script uses Bash utilities and
+accepts either `python3` or `python`, so the Windows job runs it through Git
+Bash without changing the Agent-facing contract.
 
 The script also creates MP4, MKV, MOV, WebM, and GIF fixtures, checks subtitle
 conversion and style forwarding, exercises both human and Agent progress
@@ -61,8 +69,8 @@ itself.
 1. Update `Cargo.toml` and `CHANGELOG.md`.
 2. Run all local checks and review the generated `Cargo.lock`.
 3. Create and push a tag such as `v0.1.0`.
-4. GitHub Actions builds the supported targets and publishes the archives to a
-   GitHub Release.
+4. GitHub Actions builds the supported targets and publishes Linux/macOS
+   tarballs plus a Windows x64 zip to a GitHub Release.
 
 ## Changing the Tool API
 

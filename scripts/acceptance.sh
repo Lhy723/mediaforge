@@ -3,13 +3,27 @@ set -euo pipefail
 
 BIN="${1:-target/release/media}"
 
-if [[ ! -x "$BIN" ]]; then
+if [[ ! -f "$BIN" && -f "${BIN}.exe" ]]; then
+  BIN="${BIN}.exe"
+fi
+if [[ ! -f "$BIN" ]]; then
+  echo "acceptance: binary was not found: $BIN" >&2
+  exit 2
+fi
+if [[ "$BIN" != *.exe && ! -x "$BIN" ]]; then
   echo "acceptance: binary is not executable: $BIN" >&2
   exit 2
 fi
 command -v ffmpeg >/dev/null || { echo "acceptance: ffmpeg is required" >&2; exit 2; }
 command -v ffprobe >/dev/null || { echo "acceptance: ffprobe is required" >&2; exit 2; }
-command -v python3 >/dev/null || { echo "acceptance: python3 is required" >&2; exit 2; }
+if command -v python3 >/dev/null; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null; then
+  PYTHON_BIN="python"
+else
+  echo "acceptance: Python 3 is required" >&2
+  exit 2
+fi
 
 TMP_ROOT="${TMPDIR:-/tmp}"
 WORK_DIR="$(mktemp -d "$TMP_ROOT/mediaforge-acceptance.XXXXXX")"
@@ -26,7 +40,7 @@ ffmpeg -hide_banner -loglevel error \
 assert_json() {
   local file="$1"
   local expression="$2"
-  python3 - "$file" "$expression" <<'PY'
+  "$PYTHON_BIN" - "$file" "$expression" <<'PY'
 import json
 import sys
 
@@ -39,7 +53,7 @@ PY
 }
 
 file_sha256() {
-  python3 - "$1" <<'PY'
+  "$PYTHON_BIN" - "$1" <<'PY'
 import hashlib
 import sys
 
@@ -242,7 +256,7 @@ assert_json "$WORK_DIR/tool-ffmpeg.json" "v['status'] == 'planned' and v['operat
 "$BIN" --progress clip "$SRC" --start 0 --duration 1 --output "$WORK_DIR/progress.mp4" --json \
   > "$WORK_DIR/progress.json" 2> "$WORK_DIR/progress.ndjson"
 assert_json "$WORK_DIR/progress.json" "v['status'] == 'success'"
-python3 - "$WORK_DIR/progress.ndjson" <<'PY'
+"$PYTHON_BIN" - "$WORK_DIR/progress.ndjson" <<'PY'
 import json
 import sys
 
@@ -273,7 +287,7 @@ grep -q "Elapsed" "$WORK_DIR/progress-human.err"
 
 "$BIN" --progress convert "$SRC" --to mkv --output "$WORK_DIR/progress-convert.mkv" --json \
   > "$WORK_DIR/progress-convert.json" 2> "$WORK_DIR/progress-convert.ndjson"
-python3 - "$WORK_DIR/progress-convert.ndjson" <<'PY'
+"$PYTHON_BIN" - "$WORK_DIR/progress-convert.ndjson" <<'PY'
 import json
 import sys
 
