@@ -150,13 +150,45 @@ assert_json "$WORK_DIR/audio-copy.json" "v['strategy'] == 'copy' and v['verifica
 "$BIN" extract-audio "$SRC" --format flac --output "$WORK_DIR/audio.flac" --json > "$WORK_DIR/audio-transcode.json"
 assert_json "$WORK_DIR/audio-transcode.json" "v['strategy'] == 'transcode' and v['verification']['valid'] is True"
 
-for format in mp3 aac wav opus; do
+for format in mp3 aac wav opus alac; do
   "$BIN" extract-audio "$SRC" --format "$format" --output "$WORK_DIR/audio.$format" --json > "$WORK_DIR/audio-$format.json"
   assert_json "$WORK_DIR/audio-$format.json" "v['status'] == 'success' and v['verification']['valid'] is True"
 done
 
 "$BIN" thumbnail "$SRC" --at 50% --output "$WORK_DIR/thumbnail.jpg" --json > "$WORK_DIR/thumbnail.json"
 assert_json "$WORK_DIR/thumbnail.json" "v['status'] == 'success' and v['verification']['valid'] is True"
+
+"$BIN" image "$SRC" --to jpg --width 160 --image-quality 85 \
+  --output "$WORK_DIR/frame.jpg" --json > "$WORK_DIR/image.json"
+assert_json "$WORK_DIR/image.json" "v['status'] == 'success' and v['operation'] == 'image' and v['verification']['valid'] is True"
+[[ "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$WORK_DIR/frame.jpg")" == "160" ]] || {
+  echo "image conversion did not honor the requested width" >&2
+  exit 1
+}
+
+"$BIN" edit "$SRC" --crop 160:120:0:0 --rotate 90 --speed 1.0 \
+  --output "$WORK_DIR/edited.mp4" --json > "$WORK_DIR/edit.json"
+assert_json "$WORK_DIR/edit.json" "v['status'] == 'success' and v['operation'] == 'edit' and v['verification']['valid'] is True"
+
+"$BIN" merge "$SRC" "$WORK_DIR/source.mkv" --mode concat \
+  --output "$WORK_DIR/merged.mp4" --json > "$WORK_DIR/merge.json"
+assert_json "$WORK_DIR/merge.json" "v['status'] == 'success' and v['operation'] == 'merge' and v['verification']['valid'] is True"
+
+"$BIN" audio "$SRC" --format mp3 --bitrate 128k --sample-rate 44100 --channels 1 \
+  --output "$WORK_DIR/audio-converted.mp3" --json > "$WORK_DIR/audio-converted.json"
+assert_json "$WORK_DIR/audio-converted.json" "v['status'] == 'success' and v['operation'] == 'audio' and v['verification']['valid'] is True"
+
+"$BIN" repair "$SRC" --output "$WORK_DIR/repaired.mp4" --json > "$WORK_DIR/repair.json"
+assert_json "$WORK_DIR/repair.json" "v['status'] == 'success' and v['operation'] == 'repair' and v['verification']['valid'] is True"
+
+"$BIN" presets --json > "$WORK_DIR/presets.json"
+assert_json "$WORK_DIR/presets.json" "v['status'] == 'success' and len(v['presets']) >= 5"
+
+"$BIN" convert "$SRC" --device psp --dry-run --json > "$WORK_DIR/device.json"
+assert_json "$WORK_DIR/device.json" "v['status'] == 'planned' and v['device']['id'] == 'psp' and v['device']['max_height'] == 480"
+
+"$BIN" disc "$SRC" --kind dvd --to mp4 --dry-run --json > "$WORK_DIR/disc.json"
+assert_json "$WORK_DIR/disc.json" "v['status'] == 'planned' and v['operation'] == 'disc' and v['kind'] == 'dvd'"
 
 printf '%s\n' '{"operation":"plan","target_operation":"resize","input":"'"$SRC"'","resolution":"120p"}' \
   | "$BIN" tool > "$WORK_DIR/tool.json"
@@ -165,6 +197,21 @@ assert_json "$WORK_DIR/tool.json" "v['status'] == 'planned' and v['operation'] =
 printf '%s\n' '{"operation":"convert_media","input":"'"$WORK_DIR/source.mkv"'","output_format":"mp4","dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-convert.json"
 assert_json "$WORK_DIR/tool-convert.json" "v['status'] == 'planned' and v['strategy'] == 'remux'"
+
+printf '%s\n' '{"operation":"image_convert","input":"'"$SRC"'","output_format":"jpg","width":160,"dry_run":true}' \
+  | "$BIN" tool > "$WORK_DIR/tool-image.json"
+assert_json "$WORK_DIR/tool-image.json" "v['status'] == 'planned' and v['operation'] == 'image'"
+
+printf '%s\n' '{"operation":"image_compress","input":"'"$SRC"'","output_format":"jpg","image_quality":70,"dry_run":true}' \
+  | "$BIN" tool > "$WORK_DIR/tool-image-compress.json"
+assert_json "$WORK_DIR/tool-image-compress.json" "v['status'] == 'planned' and v['operation'] == 'image' and v['quality'] == 70"
+
+printf '%s\n' '{"operation":"merge","inputs":["'"$SRC"'","'"$WORK_DIR/source.mkv"'"],"mode":"concat","dry_run":true}' \
+  | "$BIN" tool > "$WORK_DIR/tool-merge.json"
+assert_json "$WORK_DIR/tool-merge.json" "v['status'] == 'planned' and v['operation'] == 'merge' and v['input_count'] == 2"
+
+printf '%s\n' '{"operation":"presets"}' | "$BIN" tool > "$WORK_DIR/tool-presets.json"
+assert_json "$WORK_DIR/tool-presets.json" "v['status'] == 'success' and len(v['presets']) >= 5"
 
 printf '%s\n' '{"operation":"ffmpeg","args":["-version"],"dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-ffmpeg.json"

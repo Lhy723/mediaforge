@@ -61,3 +61,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   hardware, subtitle, and metadata decisions for Agent consumers.
 - CI and release workflows now use the current checkout runtime, and
   Dependabot tracks both Cargo and GitHub Actions dependencies.
+- Added image conversion (PNG/JPEG/WebP/GIF/BMP/TIFF/ICO/TGA/AVIF), resize,
+  rotate, watermark, and quality controls with encoder-aware failures.
+- Added edit, merge/concat/mux/mix, extended audio conversion controls, repair,
+  device presets, and capability-aware DVD/CD/ISO entry points.
+- Expanded video/audio container and codec routing, Tool API schema fields,
+  capability reports, acceptance coverage, and Agent Skill guidance.
+- Added the dependency-free static documentation page at `docs/index.html` for
+  agent workflows and operation examples.

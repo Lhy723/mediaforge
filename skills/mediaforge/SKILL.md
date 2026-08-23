@@ -42,6 +42,13 @@ media resize source.mp4 --resolution 1080p --json
 media clip source.mp4 --start 00:10:00 --duration 30 --json
 media extract-audio source.mp4 --format flac --json
 media thumbnail source.mp4 --at 50% --json
+media image source.png --to webp --width 1280 --image-quality 85 --json
+media edit source.mp4 --crop 1280:720:0:0 --rotate 90 --speed 1.25 --volume 0.9 --json
+media merge first.mp4 second.mp4 --mode concat --json
+media audio source.mp4 --format mp3 --bitrate 128k --sample-rate 44100 --channels 2 --json
+media repair damaged.mp4 --reencode --json
+media convert source.mp4 --device iphone --json
+media disc /path/to/source --kind dvd --to mp4 --dry-run --json
 media verify source.mp4 output.mp4 --json
 ```
 
@@ -52,8 +59,24 @@ review `target_dimension`; odd requests are explicitly rounded to an even
 encoder-compatible dimension and verified after rendering.
 
 Use codec `auto` unless the user explicitly requires one. MediaForge selects
-H.264/AAC for MP4 or MOV and VP9/Opus for WebM, and rejects incompatible
-explicit codec/container combinations during planning.
+H.264/AAC for MP4 or MOV, VP9/Opus for WebM, Theora/Opus for OGV, WMV2/WMA for
+WMV, and MPEG-2/MP2 for MPEG/VOB. It rejects incompatible explicit
+codec/container combinations during planning and returns `ENCODER_UNAVAILABLE`
+when the local FFmpeg build does not include a requested encoder.
+
+The image operation covers PNG, JPEG, WebP, GIF, BMP, TIFF, ICO, TGA, and AVIF
+where encoders exist, plus resize, rotate, watermark, and quality controls.
+The edit operation covers crop (`WIDTH:HEIGHT:X:Y`), rotation, speed (0.25–4),
+volume (0–10), named filters, subtitle burn-in, and time ranges. Merge modes
+are `concat`, `mux`, and `mix`. Audio conversion covers MP3, AAC/M4A, FLAC,
+WAV, Opus, OGG/Vorbis, WMA, AIFF, ALAC, AMR, AC-3, and MP2. Repair uses
+timestamp/corruption-tolerant remuxing and may opt into H.264/AAC re-encoding.
+Run `media presets --json` for deterministic device profiles.
+
+`disc` is intentionally capability-aware. DVD/CD/ISO device access, mounting,
+permissions, CSS/DRM, and optional utilities are platform-dependent. Treat its
+warnings and `ENCODER_UNAVAILABLE`/`FFMPEG_FAILED` errors as actionable rather
+than assuming an optical drive is available.
 
 ## JSON Tool calls
 
@@ -63,7 +86,7 @@ When the host can pipe structured input, prefer the Tool entrypoint over constru
 printf '%s\n' '{"operation":"convert","input":"source.mkv","output_format":"mp4","dry_run":true}' | media tool
 ```
 
-The Tool response is always JSON. `operation` accepts the semantic operations in the schema; use `target_operation` for an explicit operation inside a plan request, and use `output_format`, `video_codec`, `audio_codec`, `quality`, `hardware`, `dry_run`, `overwrite`, `verify_after_execute`, and `progress` as needed. Verb-style aliases such as `convert_media`, `plan_media_operation`, and `verify_media` are also supported.
+The Tool response is always JSON. `operation` accepts the semantic operations in the schema; use `target_operation` for an explicit operation inside a plan request, and use `output_format`, `video_codec`, `audio_codec`, `quality`, `hardware`, `device`, `inputs`, `mode`, image/edit/audio parameters, `dry_run`, `overwrite`, `verify_after_execute`, and `progress` as needed. Verb-style aliases such as `convert_media`, `plan_media_operation`, and `verify_media` are also supported.
 
 For an operation that is not covered by the semantic API, use the explicit Raw
 FFmpeg operation and pass the argument vector without shell quoting:

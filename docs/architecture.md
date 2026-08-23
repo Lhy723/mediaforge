@@ -65,6 +65,28 @@ Software video operations also probe the live FFmpeg encoder list before
 building a plan, so the selected encoder is one that the current build can
 actually execute.
 
+## Semantic operation families
+
+The current command surface is intentionally grouped by the kind of decision
+an Agent needs to make:
+
+- **Container/video:** `convert`, `compress`, `resize`, `clip`, and `batch`
+  choose container-compatible codecs and preserve or explain stream changes.
+- **Image:** `image` uses FFmpeg's image encoders for format conversion,
+  scaling, rotation, watermark overlays, and quality/compression controls.
+- **Edit/join:** `edit` builds a bounded filter chain for crop, rotate, speed,
+  volume, named filters, subtitles, and ranges; `merge` handles concat, mux,
+  and mix with explicit stream expectations.
+- **Audio:** `audio` and `extract-audio` share format routing while exposing
+  bitrate, sample-rate, channels, volume, and time-range controls.
+- **Recovery/device/disc:** `repair` applies timestamp/corruption-tolerant
+  remuxing or an explicit re-encode; `presets` feeds device-aware conversion;
+  `disc` is a best-effort DVD/CD/ISO bridge with host capability warnings.
+
+The supported format lists are declarations of routing intent, not a promise
+that every FFmpeg build contains every encoder. Plans probe the active build,
+and execution maps missing encoders to `ENCODER_UNAVAILABLE`.
+
 Target-size compression adds a two-pass software execution phase when no
 hardware encoder is selected. The pass log is temporary and cleaned after the
 final output; hardware encoding remains single-pass for portability.
@@ -83,6 +105,11 @@ final output; hardware encoding remains single-pass for portability.
    subtitle conversions produce warnings instead of silent stream loss.
 7. Resize verification checks the planned effective dimension and even output
    geometry; target-size compression checks the actual output byte size.
+8. Device presets may add a scale filter but never relax output safety or
+   verification.
+9. Optical-disc operations never claim DRM bypass or disc-authoring support;
+   platform permissions and optional utilities remain visible in warnings and
+   capabilities.
 
 The single-file implementation is deliberate for this first milestone: the
 behavioral contract is still moving. As operations grow, the next natural

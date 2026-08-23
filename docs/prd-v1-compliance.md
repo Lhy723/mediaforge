@@ -14,6 +14,7 @@ in the repository. The authoritative specification remains
 | Clip | Supports start plus duration or end, choosing stream copy at a safe zero boundary and precise re-encode otherwise. | Acceptance executes copy, duration-based precise, and end-based precise clips and validates output duration. |
 | Extract audio | Supports MP3, AAC, M4A, FLAC, WAV, and Opus, copying compatible audio when possible. | Acceptance executes M4A copy plus MP3, AAC, FLAC, WAV, and Opus outputs; codec routing is covered by Rust tests. |
 | Thumbnail | Extracts a frame by timestamp or percentage. | Acceptance extracts and decodes a 50% JPEG thumbnail. |
+| Extended media operations | Adds image conversion/resize/watermark/quality, edit filters and subtitles, concat/mux/mix, extended audio controls, repair, device presets, and capability-aware disc/ISO entry points. | Acceptance executes image/edit/concat/audio/repair, checks device presets, and dry-runs disc and Tool aliases; Rust tests cover format and preset routing. |
 | Batch | Supports glob and recursive directory discovery; one failed input does not stop the batch. | Acceptance requires `partial_success` for two valid files plus one corrupt file, and separately verifies recursive discovery. |
 | Verify | Checks parseability, positive size, duration, required streams, resolution/codec/stream differences, and FFmpeg decode errors. | Acceptance rejects corrupt output, severe duration drift, missing audio, and missing video. Transform-specific checks validate clip duration, resize geometry, and compression target size. |
 | Safety | Never mutates input, rejects input/output identity, avoids implicit overwrite, and does not create directories during dry-run. | Acceptance hashes the source before/after, executes collision suffixing while preserving the existing file, rejects identical paths and invalid output parents, and checks dry-run filesystem behavior. |
@@ -23,6 +24,24 @@ in the repository. The authoritative specification remains
 | Configuration | Applies quality, codec, hardware, verification, and progress defaults without allowing config to weaken overwrite safety. | Acceptance loads a temporary TOML config and checks effective plan defaults; overwrite still requires an explicit CLI/Tool request. |
 | Agent Skill | Provides workflow, safety, error handling, Tool use, and Raw FFmpeg routing instructions plus discovery metadata. | `skills/mediaforge/SKILL.md` and `skills/mediaforge/agents/openai.yaml` pass the bundled skill validator. |
 | Platforms and release gate | Builds and runs on the V1 target platforms. | GitHub Actions runs formatting, tests, Clippy, release build, and the full acceptance script on Ubuntu and macOS. |
+
+## Format Factory parity boundary
+
+MediaForge now covers the common local conversion and editing surface exposed by
+Format Factory, but keeps the agent contract explicit about host capabilities:
+
+- Video containers: MP4/MKV/MOV/WebM/AVI/WMV/FLV/OGV/3GP/MPEG/VOB/SWF with
+  container-aware software codec defaults.
+- Audio: MP3/AAC/M4A/FLAC/WAV/Opus/OGG/WMA/AIFF/ALAC/AMR/AC-3/MP2 with bitrate,
+  sample-rate, channels, volume, and range controls.
+- Images: PNG/JPEG/WebP/GIF/BMP/TIFF/ICO/TGA/AVIF with scaling, rotation,
+  watermark, and quality controls.
+- Editing and utility: concat/mux/mix, crop, rotate, speed, volume, named
+  filters, subtitle burn-in, repair, device presets, and capability reporting.
+- Optical media: DVD/CD/ISO requests are represented and routed through FFmpeg;
+  mounting, protected media, and disc-authoring workflows still require
+  platform-specific tools and are reported as capability-dependent rather than
+  silently emulated.
 
 ## Release gate
 

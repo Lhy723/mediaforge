@@ -48,3 +48,6 @@ jobs:
 
       - name: Run media acceptance smoke
         run: ./scripts/acceptance.sh target/release/media
+
+      - name: Validate static documentation
+        run: bash scripts/validate_docs.sh

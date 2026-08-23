@@ -47,8 +47,8 @@ All transformation commands accept `--dry-run`. JSON is emitted only on stdout; 
 ## Operations
 
 ```text
-inspect, plan, convert, compress, resize, clip,
-extract-audio, thumbnail, batch, verify, capabilities
+inspect, plan, convert, compress, resize, clip, extract-audio, thumbnail,
+image, edit, merge, audio, repair, disc, batch, verify, capabilities, presets
 ```
 
 Examples:
@@ -61,6 +61,13 @@ media resize video.mp4 --resolution 1080p --dry-run --json
 media clip video.mp4 --start 00:10:00 --duration 30 --json
 media extract-audio video.mp4 --format flac --json
 media thumbnail video.mp4 --at 50% --json
+media image poster.png --to webp --width 1280 --image-quality 85 --json
+media edit video.mp4 --crop 1280:720:0:0 --rotate 90 --speed 1.25 --json
+media merge first.mp4 second.mp4 --mode concat --json
+media audio video.mp4 --format mp3 --bitrate 128k --sample-rate 44100 --json
+media repair damaged.mp4 --reencode --json
+media convert video.mp4 --device psp --json
+media disc /Volumes/DVD --kind dvd --to mp4 --dry-run --json
 media batch './videos/*.mov' --convert mp4 --json
 ```
 
@@ -68,7 +75,11 @@ media batch './videos/*.mov' --convert mp4 --json
 
 Clipping uses stream copy when a zero-offset MP4 clip is compatible with the source streams and uses precise re-encoding when the requested boundary requires it. Audio extraction also copies a compatible source codec (for example AAC to M4A) before falling back to a transcode.
 
-Container-aware defaults select H.264/AAC for MP4 and MOV, and VP9/Opus for WebM. Explicit codec/container combinations are validated before FFmpeg starts.
+Container-aware defaults select H.264/AAC for MP4 and MOV, VP9/Opus for WebM, Theora/Opus for OGV, WMV2/WMA for WMV, and MPEG-2/MP2 for MPEG/VOB. Explicit codec/container combinations are validated before FFmpeg starts. The format matrix also includes AVI, FLV, 3GP, SWF, and common still-image formats; availability is checked against the installed FFmpeg build at execution time.
+
+The image subsystem supports PNG, JPEG, WebP, GIF, BMP, TIFF, ICO, TGA, and AVIF where the local FFmpeg image encoders are present. It can resize, rotate, apply a watermark, and select a quality value. `edit` covers crop, rotate, speed, volume, named filters (`grayscale`, `blur`, `sharpen`, `vintage`), subtitles, and time ranges. `merge` offers concat, video-plus-audio mux, and audio mix modes.
+
+`audio` supports MP3, AAC/M4A, FLAC, WAV, Opus, OGG/Vorbis, WMA, AIFF, ALAC, AMR, AC-3, and MP2, with bitrate, sample-rate, channel, volume, and range controls. `repair` attempts timestamp/corruption-tolerant remuxing and can opt into H.264/AAC re-encoding. `presets --json` exposes deterministic iPhone, iPad, Android, PSP, and car-player profiles. `disc` is a capability-aware FFmpeg bridge for DVD/CD/ISO sources; optical-device permissions, CSS/DRM, mounting, and optional tools remain platform-dependent and are surfaced as warnings or structured errors.
 
 Target-size compression uses two-pass software encoding when a hardware encoder is not selected, and reports the pass strategy in its plan and execution response. Hardware encodes remain single-pass because encoder support varies by platform.
 
@@ -95,7 +106,7 @@ printf '%s\n' '{"operation":"plan","input":"input.mkv","output_format":"mp4"}' \
   | media tool
 ```
 
-The Tool entrypoint accepts the semantic operations above plus `operation: "ffmpeg"` for the explicit escape hatch. For integrations that prefer verb-style names, `inspect_media`, `plan_media_operation`, `convert_media`, `compress_media`, `resize_media`, `clip_media`, `create_thumbnail`, and `verify_media` are stable aliases. Request fields include `dry_run`, `overwrite`, `verify_after_execute`, `progress`, quality, hardware, codecs, and operation-specific arguments. A `plan` request can set `target_operation` explicitly; otherwise the same inference rules as the CLI apply. The full contract is [`schemas/tool-api.json`](schemas/tool-api.json).
+The Tool entrypoint accepts the semantic operations above plus `operation: "ffmpeg"` for the explicit escape hatch. For integrations that prefer verb-style names, the `*_media` aliases are stable, and image/edit/audio/repair/disc aliases are accepted as well. Request fields include `dry_run`, `overwrite`, `verify_after_execute`, `progress`, quality, hardware, codecs, device presets, format parameters, filter parameters, and merge inputs. A `plan` request can set `target_operation` explicitly; otherwise the same inference rules as the CLI apply. The full contract is [`schemas/tool-api.json`](schemas/tool-api.json).
 
 ```bash
 printf '%s\n' '{"operation":"convert","input":"input.mkv","output":"output.mp4","dry_run":true}' \
@@ -136,6 +147,7 @@ Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding,
 - [`docs/development.md`](docs/development.md) — local development, testing, and release notes.
 - [`docs/MediaForge-PRD-v1.0.md`](docs/MediaForge-PRD-v1.0.md) — the product requirements document supplied for this project.
 - [`docs/prd-v1-compliance.md`](docs/prd-v1-compliance.md) — requirement-to-test traceability for the V1 release gate.
+- [`docs/index.html`](docs/index.html) — static agent-facing documentation page and API examples.
 
 ## Status
 

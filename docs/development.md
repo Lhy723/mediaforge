@@ -31,18 +31,24 @@ For a real media regression, generate or provide a small local sample and run
 `inspect`, `plan`, one transformation, and `verify`. Keep generated media out
 of the repository; build artifacts and local caches are ignored by Git.
 
-The acceptance smoke test creates a short synthetic MP4 in a temporary
-directory and exercises the PRD V1 command loop, safety defaults, Tool API,
-progress channel, and structured verification failures. It requires both
-`ffmpeg` and `ffprobe` on `PATH`.
+The acceptance smoke test creates short synthetic MP4, PNG, and audio fixtures
+in a temporary directory and exercises the PRD V1 command loop, the image/edit/
+merge/audio/repair/preset/disc additions, safety defaults, Tool API, progress
+channel, and structured verification failures. It requires both `ffmpeg` and
+`ffprobe` on `PATH`; optional optical-disc tools are only probed and are not a
+CI prerequisite.
 
 The script also creates MP4, MKV, MOV, and WebM fixtures, checks subtitle
 conversion, exercises both human and Agent progress channels, and verifies
 output-parent safety. PRD release gates additionally cover H.264/AAC remux,
 4K-to-1080p resize, MP3/AAC/FLAC/WAV extraction, source immutability, and
 verification failures for corruption, duration drift, and missing streams. It
-also exercises recursive batch discovery, Tool aliases, and the Raw FFmpeg
-dry-run escape hatch.
+also exercises recursive batch discovery, Tool aliases, the extended Tool
+schema, and the Raw FFmpeg dry-run escape hatch.
+
+The static documentation page lives in [`docs/index.html`](index.html). It is
+deliberately dependency-free so it can be published with GitHub Pages or
+served from an artifact host without turning MediaForge into a frontend app.
 
 ## Configuration during development
 

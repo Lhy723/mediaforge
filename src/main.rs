@@ -45,6 +45,7 @@ struct Cli {
     command: Command,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand, Debug)]
 enum Command {
     Inspect(InputArgs),
@@ -55,9 +56,16 @@ enum Command {
     Clip(ClipArgs),
     ExtractAudio(ExtractAudioArgs),
     Thumbnail(ThumbnailArgs),
+    Image(ImageArgs),
+    Edit(EditArgs),
+    Merge(MergeArgs),
+    Audio(AudioArgs),
+    Repair(RepairArgs),
+    Disc(DiscArgs),
     Batch(BatchArgs),
     Verify(VerifyArgs),
     Capabilities,
+    Presets,
     Tool(ToolArgs),
     Ffmpeg(FfmpegArgs),
 }
@@ -70,6 +78,8 @@ struct InputArgs {
 #[derive(Args, Debug, Clone)]
 struct PlanArgs {
     input: PathBuf,
+    #[arg(long = "input-extra", value_name = "PATH", num_args = 1..)]
+    inputs: Option<Vec<PathBuf>>,
     #[arg(
         long,
         help = "Semantic operation to plan; inferred from operation-specific flags when omitted"
@@ -103,6 +113,38 @@ struct PlanArgs {
     format: Option<String>,
     #[arg(long)]
     at: Option<String>,
+    #[arg(long, help = "Device output preset, for example iphone or psp")]
+    device: Option<String>,
+    #[arg(long)]
+    height: Option<u32>,
+    #[arg(long)]
+    crop: Option<String>,
+    #[arg(long)]
+    rotate: Option<u16>,
+    #[arg(long)]
+    speed: Option<f64>,
+    #[arg(long)]
+    volume: Option<f64>,
+    #[arg(long)]
+    filter: Option<String>,
+    #[arg(long)]
+    subtitle: Option<PathBuf>,
+    #[arg(long)]
+    watermark: Option<PathBuf>,
+    #[arg(long)]
+    image_quality: Option<u8>,
+    #[arg(long)]
+    bitrate: Option<String>,
+    #[arg(long)]
+    sample_rate: Option<u32>,
+    #[arg(long)]
+    channels: Option<u8>,
+    #[arg(long)]
+    reencode: bool,
+    #[arg(long)]
+    kind: Option<String>,
+    #[arg(long, default_value = "concat")]
+    mode: String,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -120,6 +162,8 @@ struct ConvertArgs {
     hardware: Option<HardwareMode>,
     #[arg(long, value_enum)]
     quality: Option<Quality>,
+    #[arg(long, help = "Device output preset, for example iphone or psp")]
+    device: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -173,6 +217,99 @@ struct ThumbnailArgs {
     input: PathBuf,
     #[arg(long, default_value = "0")]
     at: String,
+    #[arg(long)]
+    output: Option<PathBuf>,
+}
+
+#[derive(Args, Debug, Clone)]
+struct ImageArgs {
+    input: PathBuf,
+    #[arg(long, help = "Target image format: png, jpg, webp, gif, bmp, tiff, ico, tga, avif")]
+    to: Option<String>,
+    #[arg(long)]
+    output: Option<PathBuf>,
+    #[arg(long, help = "Target width in pixels")]
+    width: Option<u32>,
+    #[arg(long, help = "Target height in pixels")]
+    height: Option<u32>,
+    #[arg(long, help = "Rotate by 90, 180, or 270 degrees")]
+    rotate: Option<u16>,
+    #[arg(long, help = "Overlay a watermark image in the bottom-right corner")]
+    watermark: Option<PathBuf>,
+    #[arg(long, value_name = "1-100", help = "Image quality for lossy formats")]
+    image_quality: Option<u8>,
+}
+
+#[derive(Args, Debug, Clone)]
+struct EditArgs {
+    input: PathBuf,
+    #[arg(long)]
+    output: Option<PathBuf>,
+    #[arg(long, help = "Crop as WIDTH:HEIGHT:X:Y")]
+    crop: Option<String>,
+    #[arg(long, help = "Rotate by 90, 180, or 270 degrees")]
+    rotate: Option<u16>,
+    #[arg(long, help = "Playback speed between 0.25 and 4.0")]
+    speed: Option<f64>,
+    #[arg(long, help = "Audio volume multiplier between 0 and 10")]
+    volume: Option<f64>,
+    #[arg(long, help = "Named filter: grayscale, blur, sharpen, vintage")]
+    filter: Option<String>,
+    #[arg(long, help = "Burn an external subtitle file into the video")]
+    subtitle: Option<PathBuf>,
+    #[arg(long)]
+    start: Option<String>,
+    #[arg(long)]
+    duration: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+struct MergeArgs {
+    #[arg(required = true, num_args = 2..)]
+    inputs: Vec<PathBuf>,
+    #[arg(long, default_value = "concat", help = "Merge mode: concat, mux, or mix")]
+    mode: String,
+    #[arg(long)]
+    output: Option<PathBuf>,
+}
+
+#[derive(Args, Debug, Clone)]
+struct AudioArgs {
+    input: PathBuf,
+    #[arg(long, default_value = "m4a")]
+    format: String,
+    #[arg(long)]
+    output: Option<PathBuf>,
+    #[arg(long, help = "Audio bitrate such as 128k or 1M")]
+    bitrate: Option<String>,
+    #[arg(long, help = "Sample rate in Hz")]
+    sample_rate: Option<u32>,
+    #[arg(long, help = "Number of output channels")]
+    channels: Option<u8>,
+    #[arg(long, help = "Volume multiplier between 0 and 10")]
+    volume: Option<f64>,
+    #[arg(long)]
+    start: Option<String>,
+    #[arg(long)]
+    duration: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+struct RepairArgs {
+    input: PathBuf,
+    #[arg(long)]
+    output: Option<PathBuf>,
+    #[arg(long, help = "Re-encode streams instead of attempting a lossless repair")]
+    reencode: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+struct DiscArgs {
+    input: PathBuf,
+    #[arg(long, default_value = "dvd", help = "Disc source kind: dvd, cd, or iso")]
+    kind: String,
+    #[arg(long, help = "Target output format, for example mp4 or flac")]
+    to: Option<String>,
     #[arg(long)]
     output: Option<PathBuf>,
 }
@@ -245,6 +382,7 @@ struct ToolRequest {
     operation: String,
     target_operation: Option<String>,
     input: Option<String>,
+    inputs: Option<Vec<String>>,
     output: Option<String>,
     output_format: Option<String>,
     video_codec: Option<String>,
@@ -259,6 +397,22 @@ struct ToolRequest {
     end: Option<String>,
     format: Option<String>,
     at: Option<String>,
+    device: Option<String>,
+    mode: Option<String>,
+    crop: Option<String>,
+    rotate: Option<u16>,
+    speed: Option<f64>,
+    volume: Option<f64>,
+    filter: Option<String>,
+    subtitle: Option<String>,
+    watermark: Option<String>,
+    image_quality: Option<u8>,
+    height: Option<u32>,
+    bitrate: Option<String>,
+    sample_rate: Option<u32>,
+    channels: Option<u8>,
+    reencode: Option<bool>,
+    kind: Option<String>,
     recursive: Option<bool>,
     output_dir: Option<String>,
     args: Option<Vec<String>>,
@@ -345,6 +499,16 @@ struct HardwareSelection {
     selected: String,
     encoder: Option<String>,
     reason: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DeviceProfile {
+    id: &'static str,
+    label: &'static str,
+    container: &'static str,
+    video_codec: &'static str,
+    audio_codec: &'static str,
+    max_height: u32,
 }
 
 fn main() {
@@ -493,9 +657,16 @@ fn dispatch(context: &Context, command: Command) -> Result<Value, AppError> {
         Command::Clip(args) => clip_command(context, &args),
         Command::ExtractAudio(args) => extract_audio_command(context, &args),
         Command::Thumbnail(args) => thumbnail_command(context, &args),
+        Command::Image(args) => image_command(context, &args),
+        Command::Edit(args) => edit_command(context, &args),
+        Command::Merge(args) => merge_command(context, &args),
+        Command::Audio(args) => audio_command(context, &args),
+        Command::Repair(args) => repair_command(context, &args),
+        Command::Disc(args) => disc_command(context, &args),
         Command::Batch(args) => batch_command(context, &args),
         Command::Verify(args) => verify_command(context, &args.input, &args.output),
         Command::Capabilities => capabilities_command(context),
+        Command::Presets => presets_command(context),
         Command::Tool(args) => tool_command(context, &args),
         Command::Ffmpeg(args) => raw_ffmpeg_command(context, &args.args),
     }
@@ -548,6 +719,10 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
             &tool_context,
             Command::Plan(PlanArgs {
                 input: input()?,
+                inputs: request
+                    .inputs
+                    .clone()
+                    .map(|values| values.into_iter().map(PathBuf::from).collect()),
                 operation: request.target_operation.clone(),
                 to: request.output_format.clone(),
                 output: request.output.clone().map(PathBuf::from),
@@ -563,6 +738,22 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 end: request.end.clone(),
                 format: request.format.clone(),
                 at: request.at.clone(),
+                device: request.device.clone(),
+                height: request.height,
+                crop: request.crop.clone(),
+                rotate: request.rotate,
+                speed: request.speed,
+                volume: request.volume,
+                filter: request.filter.clone(),
+                subtitle: request.subtitle.clone().map(PathBuf::from),
+                watermark: request.watermark.clone().map(PathBuf::from),
+                image_quality: request.image_quality,
+                bitrate: request.bitrate.clone(),
+                sample_rate: request.sample_rate,
+                channels: request.channels,
+                reencode: request.reencode.unwrap_or(false),
+                kind: request.kind.clone(),
+                mode: request.mode.clone().unwrap_or_else(|| "concat".to_string()),
             }),
         ),
         "convert" => dispatch(
@@ -575,6 +766,7 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 audio_codec,
                 hardware,
                 quality,
+                device: request.device.clone(),
             }),
         ),
         "compress" => dispatch(
@@ -622,6 +814,82 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 output: request.output.clone().map(PathBuf::from),
             }),
         ),
+        "image" | "image_convert" | "image_compress" | "compress_image" => dispatch(
+            &tool_context,
+            Command::Image(ImageArgs {
+                input: input()?,
+                to: request.output_format.clone().or(request.format.clone()),
+                output: request.output.clone().map(PathBuf::from),
+                width: request.width,
+                height: request.height,
+                rotate: request.rotate,
+                watermark: request.watermark.clone().map(PathBuf::from),
+                image_quality: request.image_quality,
+            }),
+        ),
+        "edit" | "edit_media" => dispatch(
+            &tool_context,
+            Command::Edit(EditArgs {
+                input: input()?,
+                output: request.output.clone().map(PathBuf::from),
+                crop: request.crop.clone(),
+                rotate: request.rotate,
+                speed: request.speed,
+                volume: request.volume,
+                filter: request.filter.clone(),
+                subtitle: request.subtitle.clone().map(PathBuf::from),
+                start: request.start.clone(),
+                duration: request.duration.clone(),
+            }),
+        ),
+        "merge" | "concat" | "mux" | "mix" => {
+            let mut inputs = Vec::new();
+            if let Some(value) = request.input.clone() {
+                inputs.push(PathBuf::from(value));
+            }
+            if let Some(value) = request.inputs.clone() {
+                inputs.extend(value.into_iter().map(PathBuf::from));
+            }
+            dispatch(
+                &tool_context,
+                Command::Merge(MergeArgs {
+                    inputs,
+                    mode: request.mode.clone().unwrap_or_else(|| operation.clone()),
+                    output: request.output.clone().map(PathBuf::from),
+                }),
+            )
+        }
+        "audio" | "audio_convert" | "compress_audio" => dispatch(
+            &tool_context,
+            Command::Audio(AudioArgs {
+                input: input()?,
+                format: request.format.clone().unwrap_or_else(|| "m4a".to_string()),
+                output: request.output.clone().map(PathBuf::from),
+                bitrate: request.bitrate.clone(),
+                sample_rate: request.sample_rate,
+                channels: request.channels,
+                volume: request.volume,
+                start: request.start.clone(),
+                duration: request.duration.clone(),
+            }),
+        ),
+        "repair" | "repair_media" => dispatch(
+            &tool_context,
+            Command::Repair(RepairArgs {
+                input: input()?,
+                output: request.output.clone().map(PathBuf::from),
+                reencode: request.reencode.unwrap_or(false),
+            }),
+        ),
+        "disc" | "dvd" | "cd" | "iso" => dispatch(
+            &tool_context,
+            Command::Disc(DiscArgs {
+                input: input()?,
+                kind: request.kind.clone().unwrap_or_else(|| operation.clone()),
+                to: request.output_format.clone().or(request.format.clone()),
+                output: request.output.clone().map(PathBuf::from),
+            }),
+        ),
         "batch" => dispatch(
             &tool_context,
             Command::Batch(BatchArgs {
@@ -639,13 +907,14 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
             }),
         ),
         "capabilities" => dispatch(&tool_context, Command::Capabilities),
+        "presets" | "device_presets" => dispatch(&tool_context, Command::Presets),
         "ffmpeg" => raw_ffmpeg_command(&tool_context, &request.args.unwrap_or_default()),
         _ => Err(AppError::new(
             "INVALID_ARGUMENT",
             format!("Unsupported Tool operation: {}", request.operation),
         )
         .with_suggestions(&[
-            "Use a semantic operation such as inspect_media, plan_media_operation, convert_media, compress_media, resize_media, clip_media, extract_audio, create_thumbnail, batch, verify_media, capabilities, or ffmpeg.",
+            "Use a semantic operation such as inspect_media, plan_media_operation, convert_media, compress_media, resize_media, clip_media, extract_audio, create_thumbnail, image_convert, image_compress, edit_media, merge, audio_convert, repair_media, disc, presets, batch, verify_media, capabilities, or ffmpeg.",
         ])),
     }
 }
@@ -885,6 +1154,91 @@ fn plan_command(context: &Context, args: &PlanArgs) -> Result<Value, AppError> {
                 },
             );
         }
+        "image" | "image_convert" | "image_compress" | "compress_image" => {
+            return image_command(
+                &planning_context,
+                &ImageArgs {
+                    input: args.input.clone(),
+                    to: args.to.clone().or(args.format.clone()),
+                    output: args.output.clone(),
+                    width: args.width,
+                    height: args.height,
+                    rotate: args.rotate,
+                    watermark: args.watermark.clone(),
+                    image_quality: args.image_quality,
+                },
+            );
+        }
+        "edit" | "edit_media" => {
+            return edit_command(
+                &planning_context,
+                &EditArgs {
+                    input: args.input.clone(),
+                    output: args.output.clone(),
+                    crop: args.crop.clone(),
+                    rotate: args.rotate,
+                    speed: args.speed,
+                    volume: args.volume,
+                    filter: args.filter.clone(),
+                    subtitle: args.subtitle.clone(),
+                    start: args.start.clone(),
+                    duration: args.duration.clone(),
+                },
+            );
+        }
+        "merge" | "concat" | "mux" | "mix" => {
+            let mut inputs = vec![args.input.clone()];
+            inputs.extend(args.inputs.clone().unwrap_or_default());
+            let merge_mode = match operation.as_str() {
+                "mux" | "mix" | "concat" => operation.clone(),
+                _ => args.mode.clone(),
+            };
+            return merge_command(
+                &planning_context,
+                &MergeArgs { inputs, mode: merge_mode, output: args.output.clone() },
+            );
+        }
+        "audio" | "audio_convert" | "compress_audio" => {
+            return audio_command(
+                &planning_context,
+                &AudioArgs {
+                    input: args.input.clone(),
+                    format: args
+                        .format
+                        .clone()
+                        .or(args.to.clone())
+                        .unwrap_or_else(|| "m4a".to_string()),
+                    output: args.output.clone(),
+                    bitrate: args.bitrate.clone(),
+                    sample_rate: args.sample_rate,
+                    channels: args.channels,
+                    volume: args.volume,
+                    start: args.start.clone(),
+                    duration: args.duration.clone(),
+                },
+            );
+        }
+        "repair" | "repair_media" => {
+            return repair_command(
+                &planning_context,
+                &RepairArgs {
+                    input: args.input.clone(),
+                    output: args.output.clone(),
+                    reencode: args.reencode,
+                },
+            );
+        }
+        "disc" | "dvd" | "cd" | "iso" => {
+            return disc_command(
+                &planning_context,
+                &DiscArgs {
+                    input: args.input.clone(),
+                    kind: args.kind.clone().unwrap_or_else(|| operation.clone()),
+                    to: args.to.clone().or(args.format.clone()),
+                    output: args.output.clone(),
+                },
+            );
+        }
         "convert" => {}
         _ => {
             return Err(AppError::new(
@@ -892,20 +1246,35 @@ fn plan_command(context: &Context, args: &PlanArgs) -> Result<Value, AppError> {
                 format!("Planning operation {operation} is not supported."),
             )
             .with_suggestions(&[
-                "Use convert, compress, resize, clip, extract_audio, or thumbnail.",
+                "Use convert, compress, resize, clip, extract_audio, thumbnail, image, edit, merge, audio, repair, or disc.",
             ]));
         }
     }
-    let plan = build_convert_plan(
+    let profile = args.device.as_deref().map(device_profile).transpose()?;
+    let target_container = args.to.as_deref().or(profile.map(|profile| profile.container));
+    let target_video_codec = args
+        .video_codec
+        .as_deref()
+        .or(profile.map(|profile| profile.video_codec))
+        .unwrap_or(&planning_context.default_video_codec);
+    let target_audio_codec = args
+        .audio_codec
+        .as_deref()
+        .or(profile.map(|profile| profile.audio_codec))
+        .unwrap_or(&planning_context.default_audio_codec);
+    let mut plan = build_convert_plan(
         &planning_context,
         &args.input,
-        args.to.as_deref(),
+        target_container,
         args.output.as_deref(),
-        args.video_codec.as_deref().unwrap_or(&planning_context.default_video_codec),
-        args.audio_codec.as_deref().unwrap_or(&planning_context.default_audio_codec),
+        target_video_codec,
+        target_audio_codec,
         args.hardware.unwrap_or(planning_context.default_hardware),
         args.quality.unwrap_or(planning_context.default_quality),
     )?;
+    if let Some(profile) = profile {
+        apply_device_profile(&mut plan, profile);
+    }
     let mut value = plan.value;
     if let Some(object) = value.as_object_mut() {
         object.insert("status".to_string(), json!("planned"));
@@ -915,16 +1284,31 @@ fn plan_command(context: &Context, args: &PlanArgs) -> Result<Value, AppError> {
 }
 
 fn convert_command(context: &Context, args: &ConvertArgs) -> Result<Value, AppError> {
-    let plan = build_convert_plan(
+    let profile = args.device.as_deref().map(device_profile).transpose()?;
+    let target_container = args.to.as_deref().or(profile.map(|profile| profile.container));
+    let target_video_codec = args
+        .video_codec
+        .as_deref()
+        .or(profile.map(|profile| profile.video_codec))
+        .unwrap_or(&context.default_video_codec);
+    let target_audio_codec = args
+        .audio_codec
+        .as_deref()
+        .or(profile.map(|profile| profile.audio_codec))
+        .unwrap_or(&context.default_audio_codec);
+    let mut plan = build_convert_plan(
         context,
         &args.input,
-        args.to.as_deref(),
+        target_container,
         args.output.as_deref(),
-        args.video_codec.as_deref().unwrap_or(&context.default_video_codec),
-        args.audio_codec.as_deref().unwrap_or(&context.default_audio_codec),
+        target_video_codec,
+        target_audio_codec,
         args.hardware.unwrap_or(context.default_hardware),
         args.quality.unwrap_or(context.default_quality),
     )?;
+    if let Some(profile) = profile {
+        apply_device_profile(&mut plan, profile);
+    }
     if context.dry_run {
         let mut value = plan.value;
         if let Some(object) = value.as_object_mut() {
@@ -1029,6 +1413,11 @@ fn software_encoder_candidates(codec: &str) -> &'static [&'static str] {
         "h265" | "hevc" => &["libx265"],
         "vp9" => &["libvpx-vp9"],
         "av1" => &["libsvtav1", "libaom-av1"],
+        "mpeg2video" => &["mpeg2video"],
+        "flv1" => &["flv"],
+        "wmv2" => &["wmv2"],
+        "theora" => &["libtheora", "theora"],
+        "mpeg4" => &["mpeg4", "libxvid"],
         _ => &[],
     }
 }
@@ -1716,7 +2105,8 @@ fn clip_command(context: &Context, args: &ClipArgs) -> Result<Value, AppError> {
 fn extract_audio_command(context: &Context, args: &ExtractAudioArgs) -> Result<Value, AppError> {
     ensure_input(&args.input)?;
     let format = normalize_audio_format(&args.format)?;
-    let output = resolve_output(context, &args.input, args.output.as_deref(), &format)?;
+    let audio_extension = audio_output_extension(&format);
+    let output = resolve_output(context, &args.input, args.output.as_deref(), &audio_extension)?;
     let probe = probe_media(&args.input, context.verbose)?;
     let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
     if first_stream(&streams, "audio").is_none() {
@@ -1733,6 +2123,7 @@ fn extract_audio_command(context: &Context, args: &ExtractAudioArgs) -> Result<V
     } else {
         ffmpeg_args.extend(audio_encode_args(target_audio_codec, DEFAULT_AUDIO_BITRATE)?);
     }
+    ffmpeg_args.extend(audio_container_args(&format));
     ffmpeg_args.extend(["-map_metadata".to_string(), "0".to_string()]);
     let plan = OperationPlan {
         value: json!({"status":"success","operation":"extract_audio","input":absolute_display(&args.input),"output":absolute_display(&output),"format":format,"source_codec":source_audio_codec,"target_codec":target_audio_codec,"strategy":if copy_audio { "copy" } else { "transcode" },"quality_loss":if copy_audio { "none" } else { "audio_only" },"hardware":{"requested":"cpu","selected":"not_applicable","encoder":null,"reason":"Audio extraction does not use video hardware."},"metadata":{"action":"preserve"},"ffmpeg_args":ffmpeg_args}),
@@ -1777,6 +2168,833 @@ fn thumbnail_command(context: &Context, args: &ThumbnailArgs) -> Result<Value, A
         return Ok(value);
     }
     execute_simple_plan(context, &args.input, &plan)
+}
+
+fn finish_custom_plan(
+    context: &Context,
+    input: &Path,
+    plan: OperationPlan,
+) -> Result<Value, AppError> {
+    if context.dry_run {
+        let mut value = plan.value;
+        value["status"] = json!("planned");
+        value["will_execute"] = json!(false);
+        return Ok(value);
+    }
+    execute_simple_plan(context, input, &plan)
+}
+
+fn normalize_image_format(value: &str) -> Result<String, AppError> {
+    let value = value.trim().trim_start_matches('.').to_lowercase();
+    let normalized = match value.as_str() {
+        "jpg" | "jpeg" => "jpg",
+        "png" => "png",
+        "webp" => "webp",
+        "gif" => "gif",
+        "bmp" => "bmp",
+        "tif" | "tiff" => "tiff",
+        "ico" => "ico",
+        "tga" => "tga",
+        "avif" => "avif",
+        _ => {
+            return Err(AppError::new(
+                "UNSUPPORTED_FORMAT",
+                format!("Unsupported image format: {value}"),
+            ))
+        }
+    };
+    Ok(normalized.to_string())
+}
+
+fn image_output_extension(format: &str) -> String {
+    match format {
+        "jpg" => "jpg".to_string(),
+        "tiff" => "tiff".to_string(),
+        other => other.to_string(),
+    }
+}
+
+fn validate_positive_dimension(value: Option<u32>, field: &str) -> Result<(), AppError> {
+    if value == Some(0) {
+        return Err(AppError::new(
+            "INVALID_ARGUMENT",
+            format!("{field} must be greater than zero."),
+        ));
+    }
+    Ok(())
+}
+
+fn rotate_filter(value: u16) -> Result<&'static str, AppError> {
+    match value {
+        90 => Ok("transpose=1"),
+        180 => Ok("hflip,vflip"),
+        270 => Ok("transpose=2"),
+        _ => Err(AppError::new("INVALID_ARGUMENT", "Rotation must be 90, 180, or 270 degrees.")),
+    }
+}
+
+fn image_quality_args(format: &str, quality: u8) -> Vec<String> {
+    match format {
+        "jpg" => {
+            let quantizer = 31_u16.saturating_sub((quality as u16 * 30) / 100).max(1);
+            vec!["-q:v".to_string(), quantizer.to_string()]
+        }
+        "webp" | "avif" => vec!["-q:v".to_string(), quality.to_string()],
+        "png" => {
+            let compression = ((100_u16.saturating_sub(quality as u16)) / 12).min(9);
+            vec!["-compression_level".to_string(), compression.to_string()]
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn image_codec_args(format: &str) -> Vec<String> {
+    let codec = match format {
+        "jpg" => "mjpeg",
+        "png" => "png",
+        "webp" => "libwebp",
+        "gif" => "gif",
+        "bmp" => "bmp",
+        "tiff" => "tiff",
+        "ico" => "bmp",
+        "tga" => "targa",
+        "avif" => "libaom-av1",
+        _ => return Vec::new(),
+    };
+    vec!["-c:v".to_string(), codec.to_string()]
+}
+
+fn image_command(context: &Context, args: &ImageArgs) -> Result<Value, AppError> {
+    ensure_input(&args.input)?;
+    validate_positive_dimension(args.width, "Image width")?;
+    validate_positive_dimension(args.height, "Image height")?;
+    if let Some(quality) = args.image_quality {
+        if !(1..=100).contains(&quality) {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Image quality must be between 1 and 100.",
+            ));
+        }
+    }
+    if let Some(watermark) = &args.watermark {
+        ensure_input(watermark)?;
+    }
+    let format = normalize_image_format(
+        args.to
+            .as_deref()
+            .or_else(|| {
+                args.output.as_deref().and_then(|path| path.extension().and_then(OsStr::to_str))
+            })
+            .unwrap_or_else(|| args.input.extension().and_then(OsStr::to_str).unwrap_or("png")),
+    )?;
+    let image_extension = image_output_extension(&format);
+    let output = resolve_output(context, &args.input, args.output.as_deref(), &image_extension)?;
+    let mut filters = Vec::new();
+    match (args.width, args.height) {
+        (Some(width), Some(height)) => filters.push(format!("scale={width}:{height}")),
+        (Some(width), None) => filters.push(format!("scale={width}:-1")),
+        (None, Some(height)) => filters.push(format!("scale=-1:{height}")),
+        (None, None) => {}
+    }
+    if let Some(rotate) = args.rotate {
+        filters.push(rotate_filter(rotate)?.to_string());
+    }
+    let mut ffmpeg_args = vec!["-i".to_string(), args.input.to_string_lossy().to_string()];
+    if let Some(watermark) = &args.watermark {
+        ffmpeg_args.extend(["-i".to_string(), watermark.to_string_lossy().to_string()]);
+        let base = if filters.is_empty() {
+            "[0:v]".to_string()
+        } else {
+            format!("[0:v]{}[base]", filters.join(","))
+        };
+        let overlay_input = if filters.is_empty() { "[0:v]" } else { "[base]" };
+        let filter_complex = if filters.is_empty() {
+            "[0:v][1:v]overlay=W-w-16:H-h-16[v]".to_string()
+        } else {
+            format!("{base};{overlay_input}[1:v]overlay=W-w-16:H-h-16[v]")
+        };
+        ffmpeg_args.extend([
+            "-filter_complex".to_string(),
+            filter_complex,
+            "-map".to_string(),
+            "[v]".to_string(),
+        ]);
+    } else if !filters.is_empty() {
+        ffmpeg_args.extend(["-vf".to_string(), filters.join(",")]);
+    }
+    ffmpeg_args.push("-frames:v".to_string());
+    ffmpeg_args.push("1".to_string());
+    ffmpeg_args.extend(image_codec_args(&format));
+    ffmpeg_args.extend(image_quality_args(&format, args.image_quality.unwrap_or(90)));
+    let plan = OperationPlan {
+        value: json!({
+            "status": "success",
+            "operation": "image",
+            "input": absolute_display(&args.input),
+            "output": absolute_display(&output),
+            "format": format,
+            "resize": {"width": args.width, "height": args.height},
+            "rotate": args.rotate,
+            "watermark": args.watermark.as_ref().map(|path| absolute_display(path)),
+            "quality": args.image_quality.unwrap_or(90),
+            "strategy": "image_transcode",
+            "quality_loss": if args.image_quality.is_some() { "possible" } else { "none" },
+            "ffmpeg_args": ffmpeg_args,
+        }),
+        output,
+        args: ffmpeg_args,
+        strategy: "image_transcode".to_string(),
+    };
+    finish_custom_plan(context, &args.input, plan)
+}
+
+fn parse_crop(value: &str) -> Result<String, AppError> {
+    let parts = value.split(':').collect::<Vec<_>>();
+    if parts.len() != 4 || parts.iter().any(|part| part.trim().is_empty()) {
+        return Err(AppError::new("INVALID_ARGUMENT", "Crop must use WIDTH:HEIGHT:X:Y."));
+    }
+    for part in &parts {
+        if part.parse::<u32>().is_err() {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Crop dimensions and offsets must be non-negative integers.",
+            ));
+        }
+    }
+    Ok(format!("crop={}", parts.join(":")))
+}
+
+fn named_video_filter(value: &str) -> Result<&'static str, AppError> {
+    match value.to_lowercase().as_str() {
+        "grayscale" | "gray" => Ok("hue=s=0"),
+        "blur" => Ok("boxblur=2:1"),
+        "sharpen" => Ok("unsharp=5:5:1.0:5:5:0.0"),
+        "vintage" => Ok("curves=vintage"),
+        other => {
+            Err(AppError::new("INVALID_ARGUMENT", format!("Unsupported named filter: {other}")))
+        }
+    }
+}
+
+fn atempo_filter(speed: f64) -> String {
+    let mut value = speed;
+    let mut filters = Vec::new();
+    while value < 0.5 {
+        filters.push("atempo=0.5".to_string());
+        value /= 0.5;
+    }
+    while value > 2.0 {
+        filters.push("atempo=2.0".to_string());
+        value /= 2.0;
+    }
+    filters.push(format!("atempo={value:.6}"));
+    filters.join(",")
+}
+
+fn escape_filter_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "\\\\").replace(':', "\\:").replace('\'', "\\'")
+}
+
+fn edit_command(context: &Context, args: &EditArgs) -> Result<Value, AppError> {
+    ensure_input(&args.input)?;
+    let probe = probe_media(&args.input, context.verbose)?;
+    let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
+    if first_stream(&streams, "video").is_none() {
+        return Err(AppError::new("INVALID_MEDIA", "Edit requires a video stream."));
+    }
+    if let Some(speed) = args.speed {
+        if !(0.25..=4.0).contains(&speed) {
+            return Err(AppError::new("INVALID_ARGUMENT", "Speed must be between 0.25 and 4.0."));
+        }
+    }
+    if let Some(volume) = args.volume {
+        if !(0.0..=10.0).contains(&volume) {
+            return Err(AppError::new("INVALID_ARGUMENT", "Volume must be between 0 and 10."));
+        }
+    }
+    if let Some(subtitle) = &args.subtitle {
+        ensure_input(subtitle)?;
+    }
+    let output = resolve_output(context, &args.input, args.output.as_deref(), "mp4")?;
+    let mut video_filters = Vec::new();
+    if let Some(crop) = &args.crop {
+        video_filters.push(parse_crop(crop)?);
+    }
+    if let Some(rotate) = args.rotate {
+        video_filters.push(rotate_filter(rotate)?.to_string());
+    }
+    if let Some(filter) = &args.filter {
+        video_filters.push(named_video_filter(filter)?.to_string());
+    }
+    if let Some(speed) = args.speed {
+        video_filters.push(format!("setpts=PTS/{speed:.6}"));
+    }
+    if let Some(subtitle) = &args.subtitle {
+        video_filters.push(format!("subtitles={}", escape_filter_path(subtitle)));
+    }
+    let mut ffmpeg_args = Vec::new();
+    if let Some(start) = &args.start {
+        parse_time_seconds(start)?;
+        ffmpeg_args.extend(["-ss".to_string(), start.clone()]);
+    }
+    ffmpeg_args.extend(["-i".to_string(), args.input.to_string_lossy().to_string()]);
+    ffmpeg_args.extend([
+        "-map".to_string(),
+        "0:v:0".to_string(),
+        "-map".to_string(),
+        "0:a?".to_string(),
+    ]);
+    if let Some(duration) = &args.duration {
+        if parse_time_seconds(duration)? <= 0.0 {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Edit duration must be greater than zero.",
+            ));
+        }
+        ffmpeg_args.extend(["-t".to_string(), duration.clone()]);
+    }
+    if !video_filters.is_empty() {
+        ffmpeg_args.extend(["-vf".to_string(), video_filters.join(",")]);
+    }
+    ffmpeg_args.extend(video_encode_args("h264", "high", Some("libx264"))?);
+    if args.speed.is_some() || args.volume.is_some() {
+        let mut audio_filters = Vec::new();
+        if let Some(speed) = args.speed {
+            audio_filters.push(atempo_filter(speed));
+        }
+        if let Some(volume) = args.volume {
+            audio_filters.push(format!("volume={volume:.6}"));
+        }
+        ffmpeg_args.extend(["-af".to_string(), audio_filters.join(",")]);
+    }
+    ffmpeg_args.extend([
+        "-c:a".to_string(),
+        "aac".to_string(),
+        "-b:a".to_string(),
+        DEFAULT_AUDIO_BITRATE.to_string(),
+    ]);
+    let plan = OperationPlan {
+        value: json!({
+            "status": "success",
+            "operation": "edit",
+            "input": absolute_display(&args.input),
+            "output": absolute_display(&output),
+            "strategy": "filter_transcode",
+            "crop": args.crop,
+            "rotate": args.rotate,
+            "speed": args.speed,
+            "volume": args.volume,
+            "filter": args.filter,
+            "subtitle": args.subtitle.as_ref().map(|path| absolute_display(path)),
+            "audio_present": first_stream(&streams, "audio").is_some(),
+            "quality_loss": "video_and_audio",
+            "ffmpeg_args": ffmpeg_args,
+        }),
+        output,
+        args: ffmpeg_args,
+        strategy: "filter_transcode".to_string(),
+    };
+    finish_custom_plan(context, &args.input, plan)
+}
+
+fn merge_command(context: &Context, args: &MergeArgs) -> Result<Value, AppError> {
+    if args.inputs.len() < 2 {
+        return Err(AppError::new("INVALID_ARGUMENT", "Merge requires at least two input files."));
+    }
+    let mode = args.mode.to_lowercase();
+    if !["concat", "mux", "mix"].contains(&mode.as_str()) {
+        return Err(AppError::new("INVALID_ARGUMENT", "Merge mode must be concat, mux, or mix."));
+    }
+    for input in &args.inputs {
+        ensure_input(input)?;
+    }
+    if mode != "concat" && args.inputs.len() != 2 {
+        return Err(AppError::new("INVALID_ARGUMENT", "Mux and mix require exactly two inputs."));
+    }
+    let probes = args
+        .inputs
+        .iter()
+        .map(|input| probe_media(input, context.verbose))
+        .collect::<Result<Vec<_>, _>>()?;
+    let streams = probes
+        .iter()
+        .map(|probe| {
+            probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default()
+        })
+        .collect::<Vec<_>>();
+    let has_video = streams.iter().any(|value| first_stream(value, "video").is_some());
+    let has_audio = streams.iter().any(|value| first_stream(value, "audio").is_some());
+    if mode == "mux"
+        && (first_stream(&streams[0], "video").is_none()
+            || first_stream(&streams[1], "audio").is_none())
+    {
+        return Err(AppError::new(
+            "INVALID_MEDIA",
+            "Mux expects a video input followed by an audio input.",
+        ));
+    }
+    if mode == "mix" && streams.iter().any(|value| first_stream(value, "audio").is_none()) {
+        return Err(AppError::new("INVALID_MEDIA", "Mix expects audio streams in both inputs."));
+    }
+    let output_extension = if args.output.is_some() {
+        args.output
+            .as_deref()
+            .and_then(|path| path.extension().and_then(OsStr::to_str))
+            .unwrap_or("mp4")
+            .to_string()
+    } else if mode == "mix" && !has_video {
+        "m4a".to_string()
+    } else {
+        "mp4".to_string()
+    };
+    let output =
+        resolve_output(context, &args.inputs[0], args.output.as_deref(), &output_extension)?;
+    let mut ffmpeg_args = Vec::new();
+    for input in &args.inputs {
+        ffmpeg_args.extend(["-i".to_string(), input.to_string_lossy().to_string()]);
+    }
+    match mode.as_str() {
+        "concat" => {
+            let all_video = streams.iter().all(|value| first_stream(value, "video").is_some());
+            let all_audio = streams.iter().all(|value| first_stream(value, "audio").is_some());
+            let mut filter = String::new();
+            for index in 0..args.inputs.len() {
+                if all_video {
+                    filter.push_str(&format!("[{index}:v:0]"));
+                }
+                if all_audio {
+                    filter.push_str(&format!("[{index}:a:0]"));
+                }
+            }
+            filter.push_str(&format!(
+                "concat=n={}:v={}:a={}",
+                args.inputs.len(),
+                all_video as u8,
+                all_audio as u8
+            ));
+            if all_video {
+                filter.push_str("[v]");
+            }
+            if all_audio {
+                filter.push_str("[a]");
+            }
+            ffmpeg_args.extend(["-filter_complex".to_string(), filter]);
+            if all_video {
+                ffmpeg_args.extend([
+                    "-map".to_string(),
+                    "[v]".to_string(),
+                    "-c:v".to_string(),
+                    "libx264".to_string(),
+                    "-preset".to_string(),
+                    "medium".to_string(),
+                    "-crf".to_string(),
+                    "23".to_string(),
+                ]);
+            }
+            if all_audio {
+                ffmpeg_args.extend([
+                    "-map".to_string(),
+                    "[a]".to_string(),
+                    "-c:a".to_string(),
+                    "aac".to_string(),
+                    "-b:a".to_string(),
+                    DEFAULT_AUDIO_BITRATE.to_string(),
+                ]);
+            }
+        }
+        "mux" => ffmpeg_args.extend([
+            "-map".to_string(),
+            "0:v:0".to_string(),
+            "-map".to_string(),
+            "1:a:0".to_string(),
+            "-c:v".to_string(),
+            "copy".to_string(),
+            "-c:a".to_string(),
+            "copy".to_string(),
+        ]),
+        "mix" => {
+            ffmpeg_args.extend([
+                "-filter_complex".to_string(),
+                "[0:a:0][1:a:0]amix=inputs=2:duration=longest[a]".to_string(),
+            ]);
+            if has_video {
+                ffmpeg_args.extend([
+                    "-map".to_string(),
+                    "0:v:0".to_string(),
+                    "-c:v".to_string(),
+                    "copy".to_string(),
+                ]);
+            }
+            ffmpeg_args.extend([
+                "-map".to_string(),
+                "[a]".to_string(),
+                "-c:a".to_string(),
+                "aac".to_string(),
+                "-b:a".to_string(),
+                DEFAULT_AUDIO_BITRATE.to_string(),
+            ]);
+        }
+        _ => unreachable!(),
+    }
+    let plan = OperationPlan {
+        value: json!({
+            "status": "success",
+            "operation": "merge",
+            "mode": mode,
+            "inputs": args.inputs.iter().map(|path| absolute_display(path)).collect::<Vec<_>>(),
+            "input_count": args.inputs.len(),
+            "output": absolute_display(&output),
+            "strategy": mode,
+            "quality_loss": if args.mode.eq_ignore_ascii_case("mux") { "none" } else { "possible" },
+            "video_present": has_video,
+            "audio_present": if mode == "concat" {
+                streams.iter().all(|value| first_stream(value, "audio").is_some())
+            } else {
+                has_audio
+            },
+            "ffmpeg_args": ffmpeg_args,
+        }),
+        output,
+        args: ffmpeg_args,
+        strategy: mode.to_string(),
+    };
+    finish_custom_plan(context, &args.inputs[0], plan)
+}
+
+fn validate_bitrate(value: &str) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::new("INVALID_ARGUMENT", "Audio bitrate cannot be empty."));
+    }
+    let (number, suffix) = trimmed
+        .strip_suffix('k')
+        .map(|value| (value, "k"))
+        .or_else(|| trimmed.strip_suffix('K').map(|value| (value, "k")))
+        .or_else(|| trimmed.strip_suffix('M').map(|value| (value, "M")))
+        .or_else(|| trimmed.strip_suffix('m').map(|value| (value, "M")))
+        .unwrap_or((trimmed, ""));
+    if number.parse::<f64>().ok().filter(|number| number.is_finite() && *number > 0.0).is_none() {
+        return Err(AppError::new("INVALID_ARGUMENT", format!("Invalid audio bitrate: {value}")));
+    }
+    Ok(format!("{number}{suffix}"))
+}
+
+fn audio_command(context: &Context, args: &AudioArgs) -> Result<Value, AppError> {
+    ensure_input(&args.input)?;
+    let format = normalize_audio_format(&args.format)?;
+    let probe = probe_media(&args.input, context.verbose)?;
+    let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
+    let source = first_stream(&streams, "audio")
+        .ok_or_else(|| AppError::new("INVALID_MEDIA", "No audio stream was found."))?;
+    let source_codec =
+        source.get("codec_name").and_then(Value::as_str).unwrap_or("unknown").to_lowercase();
+    if let Some(rate) = args.sample_rate {
+        if rate == 0 {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Sample rate must be greater than zero.",
+            ));
+        }
+    }
+    if let Some(channels) = args.channels {
+        if channels == 0 {
+            return Err(AppError::new("INVALID_ARGUMENT", "Channels must be greater than zero."));
+        }
+    }
+    if let Some(volume) = args.volume {
+        if !(0.0..=10.0).contains(&volume) {
+            return Err(AppError::new("INVALID_ARGUMENT", "Volume must be between 0 and 10."));
+        }
+    }
+    let bitrate = args
+        .bitrate
+        .as_deref()
+        .map(validate_bitrate)
+        .transpose()?
+        .unwrap_or_else(|| DEFAULT_AUDIO_BITRATE.to_string());
+    let audio_extension = audio_output_extension(&format);
+    let output = resolve_output(context, &args.input, args.output.as_deref(), &audio_extension)?;
+    let target_codec = audio_codec_for_format(&format);
+    let copy_audio = args.bitrate.is_none()
+        && args.sample_rate.is_none()
+        && args.channels.is_none()
+        && args.volume.is_none()
+        && args.start.is_none()
+        && args.duration.is_none()
+        && audio_copy_compatible(&source_codec, &format);
+    let mut ffmpeg_args = vec![
+        "-i".to_string(),
+        args.input.to_string_lossy().to_string(),
+        "-map".to_string(),
+        "0:a:0".to_string(),
+        "-vn".to_string(),
+    ];
+    if let Some(start) = &args.start {
+        parse_time_seconds(start)?;
+        ffmpeg_args.extend(["-ss".to_string(), start.clone()]);
+    }
+    if let Some(duration) = &args.duration {
+        if parse_time_seconds(duration)? <= 0.0 {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Audio duration must be greater than zero.",
+            ));
+        }
+        ffmpeg_args.extend(["-t".to_string(), duration.clone()]);
+    }
+    if copy_audio {
+        ffmpeg_args.extend(["-c:a".to_string(), "copy".to_string()]);
+    } else {
+        ffmpeg_args.extend(audio_encode_args(target_codec, &bitrate)?);
+    }
+    if let Some(rate) = args.sample_rate {
+        ffmpeg_args.extend(["-ar".to_string(), rate.to_string()]);
+    }
+    if let Some(channels) = args.channels {
+        ffmpeg_args.extend(["-ac".to_string(), channels.to_string()]);
+    }
+    if let Some(volume) = args.volume {
+        ffmpeg_args.extend(["-af".to_string(), format!("volume={volume:.6}")]);
+    }
+    ffmpeg_args.extend(audio_container_args(&format));
+    ffmpeg_args.push("-map_metadata".to_string());
+    ffmpeg_args.push("0".to_string());
+    let plan = OperationPlan {
+        value: json!({
+            "status": "success",
+            "operation": "audio",
+            "input": absolute_display(&args.input),
+            "output": absolute_display(&output),
+            "format": format,
+            "source_codec": source_codec,
+            "target_codec": target_codec,
+            "strategy": if copy_audio { "copy" } else { "transcode" },
+            "bitrate": bitrate,
+            "sample_rate": args.sample_rate,
+            "channels": args.channels,
+            "volume": args.volume,
+            "quality_loss": if copy_audio { "none" } else { "audio_only" },
+            "ffmpeg_args": ffmpeg_args,
+        }),
+        output,
+        args: ffmpeg_args,
+        strategy: if copy_audio { "copy".to_string() } else { "transcode".to_string() },
+    };
+    finish_custom_plan(context, &args.input, plan)
+}
+
+fn repair_command(context: &Context, args: &RepairArgs) -> Result<Value, AppError> {
+    ensure_input(&args.input)?;
+    let probe = probe_media(&args.input, context.verbose)?;
+    let source_streams =
+        probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
+    let extension = args.input.extension().and_then(OsStr::to_str).unwrap_or("mp4");
+    let output = if let Some(path) = &args.output {
+        resolve_output(context, &args.input, Some(path), extension)?
+    } else {
+        let stem = args.input.file_stem().and_then(OsStr::to_str).unwrap_or("media");
+        let requested = args.input.with_file_name(format!("{stem}_repaired.{extension}"));
+        resolve_output(context, &args.input, Some(&requested), extension)?
+    };
+    let mut ffmpeg_args = vec![
+        "-fflags".to_string(),
+        "+genpts+discardcorrupt".to_string(),
+        "-err_detect".to_string(),
+        "ignore_err".to_string(),
+        "-i".to_string(),
+        args.input.to_string_lossy().to_string(),
+        "-map".to_string(),
+        "0".to_string(),
+        "-avoid_negative_ts".to_string(),
+        "make_zero".to_string(),
+    ];
+    if args.reencode {
+        ffmpeg_args.extend(video_encode_args("h264", "high", Some("libx264"))?);
+        ffmpeg_args.extend([
+            "-c:a".to_string(),
+            "aac".to_string(),
+            "-b:a".to_string(),
+            DEFAULT_AUDIO_BITRATE.to_string(),
+        ]);
+    } else {
+        ffmpeg_args.extend(["-c".to_string(), "copy".to_string()]);
+    }
+    let plan = OperationPlan {
+        value: json!({
+            "status": "success",
+            "operation": "repair",
+            "input": absolute_display(&args.input),
+            "output": absolute_display(&output),
+            "strategy": if args.reencode { "repair_transcode" } else { "repair_copy" },
+            "reencode": args.reencode,
+            "audio_present": first_stream(&source_streams, "audio").is_some(),
+            "quality_loss": if args.reencode { "possible" } else { "none" },
+            "ffmpeg_args": ffmpeg_args,
+        }),
+        output,
+        args: ffmpeg_args,
+        strategy: if args.reencode {
+            "repair_transcode".to_string()
+        } else {
+            "repair_copy".to_string()
+        },
+    };
+    finish_custom_plan(context, &args.input, plan)
+}
+
+fn disc_command(context: &Context, args: &DiscArgs) -> Result<Value, AppError> {
+    if !args.input.exists() {
+        return Err(AppError::new(
+            "FILE_NOT_FOUND",
+            format!("Disc source does not exist: {}", args.input.display()),
+        ));
+    }
+    let kind = args.kind.to_lowercase();
+    if !["dvd", "cd", "iso"].contains(&kind.as_str()) {
+        return Err(AppError::new("INVALID_ARGUMENT", "Disc kind must be dvd, cd, or iso."));
+    }
+    let default_format = if kind == "cd" { "flac" } else { "mp4" };
+    let target = args.to.clone().unwrap_or_else(|| default_format.to_string());
+    let (format, extension) = if kind == "cd" {
+        let format = normalize_audio_format(&target)?;
+        let extension = audio_output_extension(&format).to_string();
+        (format, extension)
+    } else {
+        let format = normalize_container(&target)?;
+        (format.clone(), format)
+    };
+    let output = resolve_output(context, &args.input, args.output.as_deref(), &extension)?;
+    let mut ffmpeg_args = vec!["-i".to_string(), args.input.to_string_lossy().to_string()];
+    if kind == "cd" {
+        ffmpeg_args.extend(["-map".to_string(), "0:a?".to_string(), "-vn".to_string()]);
+        ffmpeg_args
+            .extend(audio_encode_args(audio_codec_for_format(&format), DEFAULT_AUDIO_BITRATE)?);
+        ffmpeg_args.extend(audio_container_args(&format));
+    } else if kind == "dvd" {
+        ffmpeg_args.extend(["-map".to_string(), "0".to_string()]);
+        ffmpeg_args.extend(video_encode_args("h264", "high", Some("libx264"))?);
+        ffmpeg_args.extend([
+            "-c:a".to_string(),
+            "aac".to_string(),
+            "-b:a".to_string(),
+            DEFAULT_AUDIO_BITRATE.to_string(),
+        ]);
+    } else {
+        ffmpeg_args.extend([
+            "-map".to_string(),
+            "0".to_string(),
+            "-c".to_string(),
+            "copy".to_string(),
+        ]);
+    }
+    let plan = OperationPlan {
+        value: json!({
+            "status": "success",
+            "operation": "disc",
+            "kind": kind,
+            "input": absolute_display(&args.input),
+            "output": absolute_display(&output),
+            "format": format,
+            "strategy": if kind == "iso" { "disc_copy" } else { "disc_transcode" },
+            "ffmpeg_args": ffmpeg_args,
+            "warnings": ["Disc devices and protected media depend on platform permissions and FFmpeg build support."],
+        }),
+        output,
+        args: ffmpeg_args,
+        strategy: if kind == "iso" {
+            "disc_copy".to_string()
+        } else {
+            "disc_transcode".to_string()
+        },
+    };
+    finish_custom_plan(context, &args.input, plan)
+}
+
+fn device_presets() -> Vec<Value> {
+    vec![
+        json!({"id":"iphone","label":"iPhone","container":"mp4","video_codec":"h264","audio_codec":"aac","max_height":1080}),
+        json!({"id":"ipad","label":"iPad","container":"mp4","video_codec":"h264","audio_codec":"aac","max_height":1440}),
+        json!({"id":"android","label":"Android","container":"mp4","video_codec":"h264","audio_codec":"aac","max_height":1080}),
+        json!({"id":"psp","label":"PSP","container":"mp4","video_codec":"h264","audio_codec":"aac","max_height":480}),
+        json!({"id":"car","label":"车载通用","container":"mp4","video_codec":"h264","audio_codec":"aac","max_height":720}),
+    ]
+}
+
+fn device_profile(value: &str) -> Result<DeviceProfile, AppError> {
+    match value.to_lowercase().replace('_', "-").as_str() {
+        "iphone" => Ok(DeviceProfile {
+            id: "iphone",
+            label: "iPhone",
+            container: "mp4",
+            video_codec: "h264",
+            audio_codec: "aac",
+            max_height: 1080,
+        }),
+        "ipad" => Ok(DeviceProfile {
+            id: "ipad",
+            label: "iPad",
+            container: "mp4",
+            video_codec: "h264",
+            audio_codec: "aac",
+            max_height: 1440,
+        }),
+        "android" => Ok(DeviceProfile {
+            id: "android",
+            label: "Android",
+            container: "mp4",
+            video_codec: "h264",
+            audio_codec: "aac",
+            max_height: 1080,
+        }),
+        "psp" => Ok(DeviceProfile {
+            id: "psp",
+            label: "PSP",
+            container: "mp4",
+            video_codec: "h264",
+            audio_codec: "aac",
+            max_height: 480,
+        }),
+        "car" | "car-player" => Ok(DeviceProfile {
+            id: "car",
+            label: "车载通用",
+            container: "mp4",
+            video_codec: "h264",
+            audio_codec: "aac",
+            max_height: 720,
+        }),
+        other => Err(AppError::new("INVALID_ARGUMENT", format!("Unknown device preset: {other}"))
+            .with_suggestions(&[
+                "Use iphone, ipad, android, psp, or car.",
+                "Run media presets --json to list profiles.",
+            ])),
+    }
+}
+
+fn apply_device_profile(plan: &mut OperationPlan, profile: DeviceProfile) {
+    plan.args.extend(["-vf".to_string(), format!("scale=-2:{}", profile.max_height)]);
+    if let Some(value) = plan.value.as_object_mut() {
+        value.insert(
+            "device".to_string(),
+            json!({
+                "id": profile.id,
+                "label": profile.label,
+                "container": profile.container,
+                "video_codec": profile.video_codec,
+                "audio_codec": profile.audio_codec,
+                "max_height": profile.max_height,
+            }),
+        );
+        value.insert("ffmpeg_args".to_string(), json!(plan.args));
+        value.insert("quality_loss".to_string(), json!("video_and_audio"));
+        value.insert(
+            "reason".to_string(),
+            json!([format!("Applied {} device profile.", profile.label)]),
+        );
+    }
+}
+
+fn presets_command(_context: &Context) -> Result<Value, AppError> {
+    Ok(json!({"status":"success","operation":"presets","presets":device_presets()}))
 }
 
 fn execute_simple_plan(
@@ -1842,10 +3060,63 @@ fn verify_operation(
         Some("compress") => verify_compress_output(context, input, plan),
         Some("resize") => verify_resize_output(context, input, plan),
         Some("extract_audio") => verify_audio_output(context, input, &plan.output),
+        Some("audio") => verify_audio_output(context, input, &plan.output),
         Some("thumbnail") => verify_thumbnail_output(context, &plan.output),
         Some("clip") => verify_clip_output(context, input, plan),
+        Some("image") | Some("edit") | Some("merge") | Some("repair") | Some("disc") => {
+            verify_transformed_output(context, input, plan)
+        }
         _ => verify_value(context, input, &plan.output),
     }
+}
+
+fn verify_transformed_output(
+    context: &Context,
+    input: &Path,
+    plan: &OperationPlan,
+) -> Result<Value, AppError> {
+    let probe = probe_media(&plan.output, context.verbose)?;
+    let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
+    let operation = plan.value.get("operation").and_then(Value::as_str).unwrap_or("media");
+    let video_present = first_stream(&streams, "video").is_some();
+    let audio_present = first_stream(&streams, "audio").is_some();
+    let required_video = match operation {
+        "audio" => false,
+        "disc" => plan.value.get("kind").and_then(Value::as_str) != Some("cd"),
+        "merge" => plan.value.get("video_present").and_then(Value::as_bool).unwrap_or(false),
+        _ => true,
+    };
+    let required_audio = match operation {
+        "image" => false,
+        "edit" | "repair" => {
+            plan.value.get("audio_present").and_then(Value::as_bool).unwrap_or(true)
+        }
+        "merge" => plan.value.get("audio_present").and_then(Value::as_bool).unwrap_or(false),
+        "disc" => plan.value.get("kind").and_then(Value::as_str) == Some("cd"),
+        _ => false,
+    };
+    let decode_errors = decode_check(context, &plan.output).is_err();
+    let size_bytes = fs::metadata(&plan.output).map(|metadata| metadata.len()).unwrap_or(0);
+    let size_positive = size_bytes > 0;
+    let video_match = !required_video || video_present;
+    let audio_match = !required_audio || audio_present;
+    Ok(json!({
+        "status": "success",
+        "valid": size_positive && video_match && audio_match && !decode_errors,
+        "input": absolute_display(input),
+        "output": absolute_display(&plan.output),
+        "checks": {
+            "readable": true,
+            "size_bytes": size_bytes,
+            "size_positive": size_positive,
+            "video_present": video_present,
+            "video_match": video_match,
+            "audio_present": audio_present,
+            "audio_match": audio_match,
+            "decode_errors": decode_errors,
+        },
+        "warnings": []
+    }))
 }
 
 fn verify_compress_output(
@@ -2005,6 +3276,7 @@ fn batch_command(context: &Context, args: &BatchArgs) -> Result<Value, AppError>
             audio_codec: None,
             hardware: None,
             quality: None,
+            device: None,
         };
         match convert_command(context, &convert) { Ok(value) => { success += 1; results.push(value); }, Err(error) => results.push(json!({"status":"error","input":absolute_display(&file),"code":error.code,"message":error.message,"details":error.details})) }
     }
@@ -2134,6 +3406,30 @@ fn capabilities_command(context: &Context) -> Result<Value, AppError> {
         ("hevc", vec!["libx265", "hevc_videotoolbox", "hevc_nvenc", "hevc_qsv", "hevc_amf"]),
         ("vp9", vec!["libvpx-vp9"]),
         ("av1", vec!["libaom-av1", "libsvtav1", "av1_nvenc", "av1_qsv", "av1_amf"]),
+        ("mpeg4", vec!["mpeg4", "libxvid"]),
+        ("mpeg2video", vec!["mpeg2video"]),
+        ("flv1", vec!["flv1"]),
+        ("wmv2", vec!["wmv2"]),
+        ("theora", vec!["libtheora", "theora"]),
+        ("mjpeg", vec!["mjpeg"]),
+        ("png", vec!["png"]),
+        ("webp", vec!["libwebp"]),
+        ("gif", vec!["gif"]),
+        ("bmp", vec!["bmp"]),
+        ("tiff", vec!["tiff"]),
+        ("targa", vec!["targa"]),
+        ("libaom-av1-image", vec!["libaom-av1"]),
+        ("aac", vec!["aac", "libfdk_aac"]),
+        ("mp3", vec!["libmp3lame", "mp3"]),
+        ("opus", vec!["libopus", "opus"]),
+        ("vorbis", vec!["libvorbis", "vorbis"]),
+        ("flac", vec!["flac"]),
+        ("pcm_s16le", vec!["pcm_s16le"]),
+        ("wmav2", vec!["wmav2"]),
+        ("alac", vec!["alac"]),
+        ("amr_nb", vec!["libopencore_amrnb", "amr_nb"]),
+        ("ac3", vec!["ac3"]),
+        ("mp2", vec!["mp2"]),
     ] {
         let found = needles
             .into_iter()
@@ -2156,9 +3452,34 @@ fn capabilities_command(context: &Context) -> Result<Value, AppError> {
         "vaapi": has_accel("vaapi"),
         "amf": has_encoder("h264_amf"),
     });
-    Ok(
-        json!({"status":"success","ffmpeg":{"installed":version != "not installed","version":version},"platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,"hardware_acceleration":hardware_acceleration,"hardware_acceleration_list":hwaccels,"encoders":encoders}),
-    )
+    let external_tools = ["ffmpeg", "ffprobe", "drutil", "diskutil", "mount", "dvdbackup", "abcde"]
+        .into_iter()
+        .map(|tool| (tool, program_available(tool)))
+        .collect::<BTreeMap<_, _>>();
+    Ok(json!({
+        "status":"success",
+        "ffmpeg":{"installed":version != "not installed","version":version},
+        "platform":std::env::consts::OS,
+        "architecture":std::env::consts::ARCH,
+        "hardware_acceleration":hardware_acceleration,
+        "hardware_acceleration_list":hwaccels,
+        "encoders":encoders,
+            "supported_containers":["mp4","mkv","mov","webm","avi","wmv","asf","flv","ogv","3gp","mpg","mpeg","vob","swf"],
+            "supported_image_formats":["png","jpg","webp","gif","bmp","tiff","ico","tga","avif"],
+            "supported_audio_formats":["mp3","aac","m4a","flac","wav","opus","ogg","wma","aiff","alac","amr","ac3","mp2"],
+            "formats":{
+                "containers":["mp4","mkv","mov","webm","avi","wmv","asf","flv","ogv","3gp","mpg","mpeg","vob","swf"],
+                "image":["png","jpg","webp","gif","bmp","tiff","ico","tga","avif"],
+                "audio":["mp3","aac","m4a","flac","wav","opus","ogg","wma","aiff","alac","amr","ac3","mp2"]
+            },
+            "device_presets":device_presets(),
+            "external_tools":external_tools,
+            "operations":["inspect","plan","convert","compress","resize","clip","extract_audio","thumbnail","image","edit","merge","audio","repair","disc","batch","verify","capabilities","presets"],
+            "notes":[
+            "Encoder availability is build-specific; an advertised format can still return ENCODER_UNAVAILABLE.",
+            "DVD/CD device access and protected-media support depend on OS permissions and optional tools."
+        ]
+    }))
 }
 
 fn probe_media(input: &Path, verbose: bool) -> Result<Probe, AppError> {
@@ -2272,6 +3593,9 @@ fn process_failure_error(
     let stderr_lower = stderr.to_lowercase();
     let code = if stderr_lower.contains("unknown encoder")
         || (stderr_lower.contains("encoder") && stderr_lower.contains("not found"))
+        || stderr_lower.contains("experimental feature")
+        || stderr_lower.contains("only supports")
+        || stderr_lower.contains("does not support")
     {
         "ENCODER_UNAVAILABLE"
     } else if stderr_lower.contains("unknown decoder") {
@@ -2487,6 +3811,16 @@ fn ensure_input(input: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
+fn program_available(program: &str) -> bool {
+    let Some(path_var) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path_var).any(|directory| {
+        let candidate = directory.join(program);
+        candidate.is_file() && (cfg!(unix) || candidate.extension().is_some())
+    })
+}
+
 fn resolve_output(
     context: &Context,
     input: &Path,
@@ -2661,6 +3995,14 @@ fn inspect_container_label(input: &Path, format_name: &str) -> String {
         Some("mkv") => "matroska".to_string(),
         Some("mov") => "mov".to_string(),
         Some("webm") => "webm".to_string(),
+        Some("avi") => "avi".to_string(),
+        Some("wmv") | Some("asf") => "wmv".to_string(),
+        Some("flv") => "flv".to_string(),
+        Some("ogv") | Some("ogg") => "ogv".to_string(),
+        Some("3gp") | Some("3g2") => "3gp".to_string(),
+        Some("mpg") | Some("mpeg") => "mpeg".to_string(),
+        Some("vob") => "vob".to_string(),
+        Some("swf") => "swf".to_string(),
         _ => format_name.to_string(),
     }
 }
@@ -2671,6 +4013,14 @@ fn internal_container(input: &Path, format_name: &str) -> String {
         Some("mkv") => "mkv".to_string(),
         Some("mov") => "mov".to_string(),
         Some("webm") => "webm".to_string(),
+        Some("avi") => "avi".to_string(),
+        Some("wmv") | Some("asf") => "wmv".to_string(),
+        Some("flv") => "flv".to_string(),
+        Some("ogv") | Some("ogg") => "ogv".to_string(),
+        Some("3gp") | Some("3g2") => "3gp".to_string(),
+        Some("mpg") | Some("mpeg") => "mpeg".to_string(),
+        Some("vob") => "vob".to_string(),
+        Some("swf") => "swf".to_string(),
         _ if format_name.contains("matroska") => "mkv".to_string(),
         _ => format_name.to_string(),
     }
@@ -2684,6 +4034,13 @@ fn normalize_container(value: &str) -> Result<String, AppError> {
         "mov" | "quicktime" => "mov",
         "webm" => "webm",
         "avi" => "avi",
+        "wmv" | "asf" => "wmv",
+        "flv" => "flv",
+        "ogv" | "ogg" => "ogv",
+        "3gp" | "3g2" => "3gp",
+        "mpg" | "mpeg" | "mpeg1" | "mpeg2" => "mpeg",
+        "vob" | "dvd" => "vob",
+        "swf" => "swf",
         _ => {
             return Err(AppError::new(
                 "UNSUPPORTED_FORMAT",
@@ -2695,7 +4052,12 @@ fn normalize_container(value: &str) -> Result<String, AppError> {
 }
 fn normalize_audio_format(value: &str) -> Result<String, AppError> {
     let value = value.trim().trim_start_matches('.').to_lowercase();
-    if ["mp3", "aac", "m4a", "flac", "wav", "opus"].contains(&value.as_str()) {
+    if [
+        "mp3", "aac", "m4a", "flac", "wav", "opus", "ogg", "wma", "aiff", "aif", "alac", "amr",
+        "ac3", "mp2",
+    ]
+    .contains(&value.as_str())
+    {
         Ok(value)
     } else {
         Err(AppError::new("UNSUPPORTED_FORMAT", format!("Unsupported audio format: {value}")))
@@ -2709,7 +4071,22 @@ fn audio_codec_for_format(format: &str) -> &'static str {
         "flac" => "flac",
         "wav" => "wav",
         "opus" => "opus",
+        "ogg" => "vorbis",
+        "wma" => "wmav2",
+        "aiff" | "aif" => "aiff",
+        "alac" => "alac",
+        "amr" => "amr_nb",
+        "ac3" => "ac3",
+        "mp2" => "mp2",
         _ => "aac",
+    }
+}
+
+fn audio_output_extension(format: &str) -> String {
+    match format {
+        "aif" | "aiff" => "aiff".to_string(),
+        "alac" => "m4a".to_string(),
+        _ => format.to_string(),
     }
 }
 
@@ -2720,6 +4097,13 @@ fn audio_copy_compatible(codec: &str, format: &str) -> bool {
         "flac" => codec == "flac",
         "wav" => codec.starts_with("pcm_") || codec == "pcm_s16le",
         "opus" => codec == "opus",
+        "ogg" => codec == "vorbis",
+        "wma" => codec == "wmav1" || codec == "wmav2",
+        "aiff" | "aif" => codec.starts_with("pcm_") || codec == "alac",
+        "alac" => codec == "alac",
+        "amr" => codec == "amr_nb" || codec == "amr_wb",
+        "ac3" => codec == "ac3",
+        "mp2" => codec == "mp2",
         _ => false,
     }
 }
@@ -2729,6 +4113,12 @@ fn is_video_compatible(container: &str, codec: &str) -> bool {
         "mp4" | "mov" => ["h264", "h265", "hevc", "mpeg4", "av1", "vp9"].contains(&codec),
         "webm" => ["vp8", "vp9", "av1"].contains(&codec),
         "mkv" | "avi" => true,
+        "wmv" => ["wmv1", "wmv2", "msmpeg4", "msmpeg4v2", "h264"].contains(&codec),
+        "flv" => ["flv1", "h263", "h264"].contains(&codec),
+        "ogv" => ["theora"].contains(&codec),
+        "3gp" => ["h264", "mpeg4", "h263"].contains(&codec),
+        "mpeg" | "vob" => ["mpeg1video", "mpeg2video"].contains(&codec),
+        "swf" => ["flv1", "h263"].contains(&codec),
         _ => false,
     }
 }
@@ -2737,23 +4127,34 @@ fn is_audio_compatible(container: &str, codec: &str) -> bool {
         "mp4" | "mov" => ["aac", "mp3", "ac3", "eac3"].contains(&codec),
         "webm" => ["opus", "vorbis"].contains(&codec),
         "mkv" | "avi" => true,
+        "wmv" => ["wmav1", "wmav2", "wma", "aac", "mp3"].contains(&codec),
+        "flv" => ["mp3", "aac"].contains(&codec),
+        "ogv" => ["vorbis", "opus"].contains(&codec),
+        "3gp" => ["aac", "amr_nb", "amr_wb", "mp3"].contains(&codec),
+        "mpeg" | "vob" => ["mp1", "mp2", "mp3", "ac3", "dts", "pcm_s16be"].contains(&codec),
+        "swf" => ["mp3"].contains(&codec),
         _ => false,
     }
 }
 
 fn default_video_codec_for_container(container: &str) -> &'static str {
-    if container == "webm" {
-        "vp9"
-    } else {
-        "h264"
+    match container {
+        "webm" => "vp9",
+        "ogv" => "theora",
+        "flv" | "swf" => "flv1",
+        "wmv" => "wmv2",
+        "mpeg" | "vob" => "mpeg2video",
+        _ => "h264",
     }
 }
 
 fn default_audio_codec_for_container(container: &str) -> &'static str {
-    if container == "webm" {
-        "opus"
-    } else {
-        "aac"
+    match container {
+        "webm" | "ogv" => "opus",
+        "wmv" => "wmav2",
+        "flv" | "swf" => "mp3",
+        "mpeg" | "vob" => "mp2",
+        _ => "aac",
     }
 }
 
@@ -2917,6 +4318,36 @@ fn video_encode_args(
             }
             Ok(args)
         }
+        "mpeg2video" => Ok(vec![
+            "-c:v".into(),
+            encoder.to_string(),
+            "-q:v".into(),
+            match quality {
+                "lossless" => "1",
+                "very-high" => "2",
+                "high" => "3",
+                "balanced" => "5",
+                "small" => "7",
+                "tiny" => "9",
+                _ => "5",
+            }
+            .into(),
+        ]),
+        "flv1" | "wmv2" | "theora" | "mpeg4" => Ok(vec![
+            "-c:v".into(),
+            encoder.to_string(),
+            "-q:v".into(),
+            match quality {
+                "lossless" => "1",
+                "very-high" => "3",
+                "high" => "5",
+                "balanced" => "7",
+                "small" => "9",
+                "tiny" => "12",
+                _ => "7",
+            }
+            .into(),
+        ]),
         _ => unreachable!("software encoder candidates validate the codec"),
     }
 }
@@ -2955,9 +4386,41 @@ fn audio_encode_args(codec: &str, bitrate: &str) -> Result<Vec<String>, AppError
         "mp3" => Ok(vec!["-c:a".into(), "libmp3lame".into(), "-b:a".into(), bitrate.into()]),
         "flac" => Ok(vec!["-c:a".into(), "flac".into()]),
         "wav" => Ok(vec!["-c:a".into(), "pcm_s16le".into()]),
+        "vorbis" => Ok(vec![
+            "-strict".into(),
+            "-2".into(),
+            "-c:a".into(),
+            "vorbis".into(),
+            "-b:a".into(),
+            bitrate.into(),
+        ]),
+        "wmav2" => Ok(vec!["-c:a".into(), "wmav2".into(), "-b:a".into(), bitrate.into()]),
+        "aiff" => Ok(vec!["-c:a".into(), "pcm_s16be".into()]),
+        "alac" => Ok(vec!["-c:a".into(), "alac".into()]),
+        "amr_nb" => Ok(vec![
+            "-c:a".into(),
+            "libopencore_amrnb".into(),
+            "-ar".into(),
+            "8000".into(),
+            "-ac".into(),
+            "1".into(),
+            "-b:a".into(),
+            "12.2k".into(),
+        ]),
+        "ac3" => Ok(vec!["-c:a".into(), "ac3".into(), "-b:a".into(), bitrate.into()]),
+        "mp2" => Ok(vec!["-c:a".into(), "mp2".into(), "-b:a".into(), bitrate.into()]),
         other => {
             Err(AppError::new("UNSUPPORTED_CODEC", format!("Unsupported audio codec: {other}")))
         }
+    }
+}
+
+fn audio_container_args(format: &str) -> Vec<String> {
+    match format {
+        // ALAC is an audio codec carried by the ISO BMFF/M4A container; an
+        // explicit format keeps custom `.alac` output paths deterministic.
+        "alac" => vec!["-f".to_string(), "ipod".to_string()],
+        _ => Vec::new(),
     }
 }
 fn subtitle_warnings(streams: &[Value], container: &str) -> Vec<String> {
@@ -3189,8 +4652,10 @@ fn is_media_extension(path: &Path) -> bool {
         .and_then(OsStr::to_str)
         .map(|ext| {
             [
-                "mp4", "mkv", "mov", "webm", "avi", "m4v", "mts", "m2ts", "mp3", "wav", "flac",
-                "m4a", "aac", "opus",
+                "mp4", "mkv", "mov", "webm", "avi", "wmv", "asf", "flv", "ogv", "3gp", "mpg",
+                "mpeg", "vob", "swf", "m4v", "mts", "m2ts", "mp3", "wav", "flac", "m4a", "aac",
+                "opus", "ogg", "wma", "aiff", "aif", "alac", "amr", "ac3", "mp2", "png", "jpg",
+                "jpeg", "webp", "gif", "bmp", "tif", "tiff", "ico", "tga", "avif",
             ]
             .contains(&ext.to_lowercase().as_str())
         })
@@ -3386,5 +4851,40 @@ mod tests {
         assert_eq!(bit_depth(&json!({"pix_fmt":"yuv420p10le"})), Some(10));
         assert_eq!(bit_depth(&json!({"pix_fmt":"yuv420p"})), Some(8));
         assert_eq!(bit_depth(&json!({})), None);
+    }
+
+    #[test]
+    fn expanded_format_matrix_routes_audio_and_video_codecs() {
+        assert_eq!(normalize_container("wmv").unwrap(), "wmv");
+        assert_eq!(normalize_container("3gp").unwrap(), "3gp");
+        assert_eq!(normalize_audio_format("wma").unwrap(), "wma");
+        assert_eq!(audio_codec_for_format("ogg"), "vorbis");
+        assert_eq!(audio_output_extension("alac"), "m4a");
+        assert!(is_video_compatible("flv", "h264"));
+        assert!(is_audio_compatible("wmv", "wmav2"));
+        assert!(!is_audio_compatible("mpeg", "aac"));
+        assert!(is_audio_compatible("vob", "ac3"));
+        assert!(software_encoder_candidates("mpeg2video").contains(&"mpeg2video"));
+        assert!(audio_encode_args("vorbis", "96k").unwrap().contains(&"-strict".to_string()));
+    }
+
+    #[test]
+    fn image_and_edit_helpers_validate_safe_operations() {
+        assert_eq!(normalize_image_format(".jpeg").unwrap(), "jpg");
+        assert_eq!(rotate_filter(90).unwrap(), "transpose=1");
+        assert!(rotate_filter(45).is_err());
+        assert_eq!(parse_crop("320:240:0:0").unwrap(), "crop=320:240:0:0");
+        assert!(parse_crop("320x240").is_err());
+        assert_eq!(named_video_filter("grayscale").unwrap(), "hue=s=0");
+        assert_eq!(atempo_filter(4.0), "atempo=2.0,atempo=2.000000");
+    }
+
+    #[test]
+    fn device_presets_are_explicit_and_deterministic() {
+        let profile = device_profile("psp").unwrap();
+        assert_eq!(profile.container, "mp4");
+        assert_eq!(profile.max_height, 480);
+        assert!(device_profile("unknown").is_err());
+        assert_eq!(device_presets().len(), 5);
     }
 }

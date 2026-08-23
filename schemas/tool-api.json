@@ -16,6 +16,13 @@
         "clip", "clip_media",
         "extract_audio", "extract-audio",
         "thumbnail", "create_thumbnail", "create-thumbnail",
+        "image", "image_convert", "image-convert", "image_compress", "image-compress", "compress_image", "compress-image",
+        "edit", "edit_media", "edit-media",
+        "merge", "concat", "mux", "mix",
+        "audio", "audio_convert", "audio-convert", "compress_audio",
+        "repair", "repair_media", "repair-media",
+        "disc", "dvd", "cd", "iso",
+        "presets", "device_presets", "device-presets",
         "batch",
         "verify", "verify_media",
         "capabilities",
@@ -24,26 +31,43 @@
     },
     "target_operation": {
       "type": "string",
-      "enum": ["convert", "compress", "resize", "clip", "extract_audio", "extract-audio", "thumbnail", "create_thumbnail", "create-thumbnail"],
+      "enum": ["convert", "compress", "resize", "clip", "extract_audio", "extract-audio", "thumbnail", "create_thumbnail", "create-thumbnail", "image", "image_convert", "image-convert", "image_compress", "image-compress", "compress_image", "compress-image", "edit", "edit_media", "edit-media", "merge", "concat", "mux", "mix", "audio", "audio_convert", "audio-convert", "compress_audio", "repair", "repair_media", "repair-media", "disc", "dvd", "cd", "iso"],
       "description": "Semantic operation to plan when operation is plan; omitted values are inferred from the supplied fields."
     },
     "input": { "type": "string", "minLength": 1 },
     "output": { "type": "string" },
-    "output_format": { "type": "string", "enum": ["mp4", "mkv", "mov", "webm"] },
-    "video_codec": { "type": "string", "enum": ["auto", "copy", "h264", "h265", "vp9", "av1"] },
-    "audio_codec": { "type": "string", "enum": ["auto", "copy", "aac", "opus", "mp3"] },
+    "output_format": { "type": "string", "enum": ["mp4", "mkv", "mov", "webm", "avi", "wmv", "asf", "flv", "ogv", "3gp", "mpg", "mpeg", "vob", "swf", "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "ico", "tga", "avif"] },
+    "video_codec": { "type": "string", "enum": ["auto", "copy", "h264", "h265", "vp9", "av1", "mpeg4", "mpeg2video", "flv1", "wmv2", "theora"] },
+    "audio_codec": { "type": "string", "enum": ["auto", "copy", "aac", "opus", "mp3", "vorbis", "wmav2", "flac", "pcm_s16le", "alac", "amr_nb", "ac3", "mp2"] },
     "quality": { "type": "string", "enum": ["lossless", "very-high", "very_high", "high", "balanced", "small", "tiny"] },
     "hardware": { "type": "string", "enum": ["auto", "cpu", "gpu"] },
     "target_size": { "type": "string", "description": "Approximate target size such as 500MB or 1.5GB." },
     "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 },
     "resolution": { "type": "string", "description": "Target height such as 1080p." },
     "start": { "type": "string" },
     "duration": { "type": "string" },
     "end": { "type": "string" },
-    "format": { "type": "string", "enum": ["mp3", "aac", "m4a", "flac", "wav", "opus"] },
+    "format": { "type": "string", "enum": ["mp3", "aac", "m4a", "flac", "wav", "opus", "ogg", "wma", "aiff", "aif", "alac", "amr", "ac3", "mp2"] },
     "at": { "type": "string", "description": "Thumbnail position in seconds, HH:MM:SS, or a percentage." },
     "recursive": { "type": "boolean", "default": false },
     "output_dir": { "type": "string" },
+    "inputs": { "type": "array", "minItems": 2, "items": { "type": "string", "minLength": 1 } },
+    "device": { "type": "string", "description": "Device preset such as iphone, ipad, android, psp, or car." },
+    "mode": { "type": "string", "enum": ["concat", "mux", "mix"] },
+    "crop": { "type": "string", "description": "Crop as WIDTH:HEIGHT:X:Y." },
+    "rotate": { "type": "integer", "enum": [90, 180, 270] },
+    "speed": { "type": "number", "minimum": 0.25, "maximum": 4 },
+    "volume": { "type": "number", "minimum": 0, "maximum": 10 },
+    "filter": { "type": "string" },
+    "subtitle": { "type": "string" },
+    "watermark": { "type": "string" },
+    "image_quality": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "bitrate": { "type": "string" },
+    "sample_rate": { "type": "integer", "minimum": 8000 },
+    "channels": { "type": "integer", "minimum": 1, "maximum": 8 },
+    "reencode": { "type": "boolean", "default": false },
+    "kind": { "type": "string", "enum": ["dvd", "cd", "iso"] },
     "args": {
       "type": "array",
       "description": "Raw FFmpeg arguments. Use only for operations not covered by MediaForge semantics.",
@@ -67,12 +91,26 @@
               "inspect", "inspect_media", "plan", "plan_media_operation",
               "convert", "convert_media", "compress", "compress_media",
               "resize", "resize_media", "clip", "clip_media", "extract_audio", "extract-audio",
-              "thumbnail", "create_thumbnail", "create-thumbnail", "batch", "verify", "verify_media"
+              "thumbnail", "create_thumbnail", "create-thumbnail",
+              "image", "image_convert", "image-convert", "image_compress", "image-compress", "compress_image", "compress-image",
+              "edit", "edit_media", "edit-media",
+              "audio", "audio_convert", "audio-convert", "compress_audio",
+              "repair", "repair_media", "repair-media",
+              "disc", "dvd", "cd", "iso",
+              "batch", "verify", "verify_media"
             ]
           }
         }
       },
       "then": { "required": ["input"] }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": { "enum": ["merge", "concat", "mux", "mix"] }
+        }
+      },
+      "then": { "required": ["inputs"] }
     },
     {
       "if": {
