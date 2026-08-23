@@ -1280,7 +1280,7 @@ fn execute_plan(context: &Context, input: &Path, plan: &OperationPlan) -> Result
                 json!({"input": absolute_display(input), "output": absolute_display(&plan.output)}),
             ));
     }
-    let args = build_ffmpeg_args(input, &plan.output, &plan.args);
+    let args = build_ffmpeg_args(input, &plan.output, &plan.args, context.overwrite);
     run_ffmpeg(context, &args)?;
     finish_plan_execution(context, input, plan)
 }
@@ -1308,7 +1308,8 @@ fn execute_two_pass_plan(
         "-f".to_string(),
         "null".to_string(),
     ]);
-    let first_args = build_ffmpeg_args(input, Path::new(null_device()), &first_pass);
+    let first_args =
+        build_ffmpeg_args(input, Path::new(null_device()), &first_pass, context.overwrite);
     let first_result = run_ffmpeg(context, &first_args);
     if let Err(error) = first_result {
         cleanup_passlog(&passlog);
@@ -1322,18 +1323,23 @@ fn execute_two_pass_plan(
         "-passlogfile".to_string(),
         passlog.to_string_lossy().to_string(),
     ]);
-    let second_args = build_ffmpeg_args(input, &plan.output, &second_pass);
+    let second_args = build_ffmpeg_args(input, &plan.output, &second_pass, context.overwrite);
     let second_result = run_ffmpeg(context, &second_args);
     cleanup_passlog(&passlog);
     second_result?;
     finish_plan_execution(context, input, plan)
 }
 
-fn build_ffmpeg_args(input: &Path, output: &Path, operation_args: &[String]) -> Vec<String> {
+fn build_ffmpeg_args(
+    input: &Path,
+    output: &Path,
+    operation_args: &[String],
+    overwrite: bool,
+) -> Vec<String> {
     let mut args = vec![
         "-hide_banner".to_string(),
         "-nostdin".to_string(),
-        "-y".to_string(),
+        if overwrite { "-y" } else { "-n" }.to_string(),
         "-i".to_string(),
         input.to_string_lossy().to_string(),
     ];
@@ -1778,7 +1784,11 @@ fn execute_simple_plan(
     input: &Path,
     plan: &OperationPlan,
 ) -> Result<Value, AppError> {
-    let mut args = vec!["-hide_banner".to_string(), "-nostdin".to_string(), "-y".to_string()];
+    let mut args = vec![
+        "-hide_banner".to_string(),
+        "-nostdin".to_string(),
+        if context.overwrite { "-y" } else { "-n" }.to_string(),
+    ];
     if !plan.args.iter().any(|argument| argument == "-i") {
         args.extend(["-i".to_string(), input.to_string_lossy().to_string()]);
     }
@@ -3248,6 +3258,19 @@ mod tests {
         let path = temp.path().join("video.mp4");
         fs::write(&path, b"existing").unwrap();
         assert_eq!(next_available_path(&path), temp.path().join("video_1.mp4"));
+    }
+
+    #[test]
+    fn ffmpeg_args_require_explicit_overwrite() {
+        let input = Path::new("input.mp4");
+        let output = Path::new("output.mp4");
+        let operation_args = vec!["-c".to_string(), "copy".to_string()];
+
+        let safe_args = build_ffmpeg_args(input, output, &operation_args, false);
+        assert_eq!(safe_args.get(2).map(String::as_str), Some("-n"));
+
+        let overwrite_args = build_ffmpeg_args(input, output, &operation_args, true);
+        assert_eq!(overwrite_args.get(2).map(String::as_str), Some("-y"));
     }
 
     #[test]
