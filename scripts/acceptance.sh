@@ -67,6 +67,14 @@ print(digest.hexdigest())
 PY
 }
 
+json_path() {
+  if command -v cygpath >/dev/null; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 SOURCE_SHA256="$(file_sha256 "$SRC")"
 
 "$BIN" inspect "$SRC" --json > "$WORK_DIR/inspect.json"
@@ -81,6 +89,8 @@ assert_json "$WORK_DIR/plan-compress.json" "v['status'] == 'planned' and v['oper
 ffmpeg -hide_banner -loglevel error -i "$SRC" -c copy "$WORK_DIR/source.mov"
 ffmpeg -hide_banner -loglevel error -i "$SRC" -c copy "$WORK_DIR/source.mkv"
 ffmpeg -hide_banner -loglevel error -i "$SRC" -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -c:a libopus "$WORK_DIR/source.webm"
+SRC_JSON="$(json_path "$SRC")"
+SOURCE_MKV_JSON="$(json_path "$WORK_DIR/source.mkv")"
 for media in "$SRC" "$WORK_DIR/source.mkv" "$WORK_DIR/source.mov" "$WORK_DIR/source.webm"; do
   name="$(basename "$media" | tr '.' '-')"
   "$BIN" inspect "$media" --json > "$WORK_DIR/inspect-$name.json"
@@ -224,27 +234,27 @@ printf 'MediaForge ISO fixture\n' > "$WORK_DIR/disc-input/readme.txt"
   > "$WORK_DIR/disc-create.json"
 assert_json "$WORK_DIR/disc-create.json" "v['status'] == 'planned' and v['action'] == 'create_iso' and v['tool_available'] in (True, False)"
 
-printf '%s\n' '{"operation":"plan","target_operation":"resize","input":"'"$SRC"'","resolution":"120p"}' \
+printf '%s\n' '{"operation":"plan","target_operation":"resize","input":"'"$SRC_JSON"'","resolution":"120p"}' \
   | "$BIN" tool > "$WORK_DIR/tool.json"
 assert_json "$WORK_DIR/tool.json" "v['status'] == 'planned' and v['operation'] == 'resize'"
 
-printf '%s\n' '{"operation":"convert_media","input":"'"$WORK_DIR/source.mkv"'","output_format":"mp4","dry_run":true}' \
+printf '%s\n' '{"operation":"convert_media","input":"'"$SOURCE_MKV_JSON"'","output_format":"mp4","dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-convert.json"
 assert_json "$WORK_DIR/tool-convert.json" "v['status'] == 'planned' and v['strategy'] == 'remux'"
 
-printf '%s\n' '{"operation":"image_convert","input":"'"$SRC"'","output_format":"jpg","width":160,"dry_run":true}' \
+printf '%s\n' '{"operation":"image_convert","input":"'"$SRC_JSON"'","output_format":"jpg","width":160,"dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-image.json"
 assert_json "$WORK_DIR/tool-image.json" "v['status'] == 'planned' and v['operation'] == 'image'"
 
-printf '%s\n' '{"operation":"image_compress","input":"'"$SRC"'","output_format":"jpg","image_quality":70,"dry_run":true}' \
+printf '%s\n' '{"operation":"image_compress","input":"'"$SRC_JSON"'","output_format":"jpg","image_quality":70,"dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-image-compress.json"
 assert_json "$WORK_DIR/tool-image-compress.json" "v['status'] == 'planned' and v['operation'] == 'image' and v['quality'] == 70"
 
-printf '%s\n' '{"operation":"video_to_gif","input":"'"$SRC"'","duration":"1","fps":8,"width":96,"dry_run":true}' \
+printf '%s\n' '{"operation":"video_to_gif","input":"'"$SRC_JSON"'","duration":"1","fps":8,"width":96,"dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-gif.json"
 assert_json "$WORK_DIR/tool-gif.json" "v['status'] == 'planned' and v['operation'] == 'gif' and v['fps'] == 8"
 
-printf '%s\n' '{"operation":"merge","inputs":["'"$SRC"'","'"$WORK_DIR/source.mkv"'"],"mode":"concat","dry_run":true}' \
+printf '%s\n' '{"operation":"merge","inputs":["'"$SRC_JSON"'","'"$SOURCE_MKV_JSON"'"],"mode":"concat","dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-merge.json"
 assert_json "$WORK_DIR/tool-merge.json" "v['status'] == 'planned' and v['operation'] == 'merge' and v['input_count'] == 2"
 
