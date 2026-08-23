@@ -18,7 +18,35 @@ FFmpeg is powerful but exposes a large, stateful command surface. MediaForge add
 
 ## Install
 
-FFmpeg and FFprobe must be available on `PATH`.
+### 普通用户：下载预编译版（推荐）
+
+MediaForge itself is a small binary; FFmpeg and FFprobe are the only runtime
+dependencies. Install FFmpeg once, then use the matching one-line installer.
+
+macOS or Linux:
+
+```bash
+# macOS: brew install ffmpeg
+# Debian/Ubuntu: sudo apt install ffmpeg
+curl -fsSL https://raw.githubusercontent.com/Lhy723/mediaforge/main/scripts/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+choco install ffmpeg
+irm https://raw.githubusercontent.com/Lhy723/mediaforge/main/scripts/install.ps1 | iex
+```
+
+The installer selects the current release for macOS Apple Silicon/Intel, Linux
+x64, or Windows x64, places `media` in `~/.local/bin` (Unix) or
+`%LOCALAPPDATA%\\MediaForge\\bin` (Windows), and prints the final `PATH`
+hint. To install a specific release, set `MEDIAFORGE_VERSION`, for example
+`MEDIAFORGE_VERSION=v0.1.0`.
+
+### From source
+
+For development or an unreleased checkout, Rust/Cargo is also required:
 
 ```bash
 cargo install --path . --bin media
@@ -36,6 +64,8 @@ cargo build --release --bin media
 MediaForge is tested and packaged for macOS, Linux, and Windows x64. Install
 FFmpeg and FFprobe on `PATH` before using the CLI. On Windows, the release
 binary is `media.exe`; the same semantic commands and JSON Tool API apply.
+
+For a source build on Windows:
 
 ```powershell
 choco install ffmpeg --yes
@@ -162,6 +192,7 @@ Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding,
 - [`skills/mediaforge/agents/openai.yaml`](skills/mediaforge/agents/openai.yaml) — OpenAI/Codex discovery metadata for the Agent Skill.
 - [`docs/architecture.md`](docs/architecture.md) — control-plane design and invariants.
 - [`docs/development.md`](docs/development.md) — local development, testing, and release notes.
+- [`scripts/install.sh`](scripts/install.sh) and [`scripts/install.ps1`](scripts/install.ps1) — prebuilt binary installers for ordinary users.
 - [`docs/MediaForge-PRD-v1.0.md`](docs/MediaForge-PRD-v1.0.md) — the product requirements document supplied for this project.
 - [`docs/prd-v1-compliance.md`](docs/prd-v1-compliance.md) — requirement-to-test traceability for the V1 release gate.
 - [`docs/index.html`](docs/index.html) — static agent-facing documentation page and API examples.

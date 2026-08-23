@@ -69,8 +69,11 @@ itself.
 1. Update `Cargo.toml` and `CHANGELOG.md`.
 2. Run all local checks and review the generated `Cargo.lock`.
 3. Create and push a tag such as `v0.1.0`.
-4. GitHub Actions builds the supported targets and publishes Linux/macOS
-   tarballs plus a Windows x64 zip to a GitHub Release.
+4. GitHub Actions builds the supported targets and publishes versioned and
+   stable-name Linux/macOS tarballs plus Windows x64 zips to a GitHub Release.
+   The stable names are consumed by [`scripts/install.sh`](../scripts/install.sh)
+   and [`scripts/install.ps1`](../scripts/install.ps1), so ordinary users do
+   not need Rust or the GitHub API to install a released binary.
 
 ## Changing the Tool API
 
