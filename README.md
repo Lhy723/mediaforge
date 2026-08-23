@@ -3,9 +3,13 @@
 [![CI](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-MediaForge is an agent-native media processing toolkit. It gives an AI agent a small, deterministic control plane over [FFmpeg](https://ffmpeg.org/) and FFprobe: inspect media, plan an operation, execute it safely, and verify the result. It is a CLI and a JSON-over-stdin tool—not a frontend application.
+MediaForge 是一个面向 AI Agent 的媒体处理工具。它为 [FFmpeg](https://ffmpeg.org/) 和 FFprobe 提供小而确定性的控制层：检查媒体、规划操作、安全执行并验证结果。它是 CLI 和基于 stdin/stdout 的 JSON 工具，不是前端项目或 GUI 应用。
 
-## Why MediaForge
+MediaForge is an agent-native media processing toolkit. It gives an AI agent a small, deterministic control plane over FFmpeg and FFprobe: inspect media, plan an operation, execute it safely, and verify the result.
+
+本文档的中文说明优先覆盖安装、Agent 调用、平台支持和项目入口；下面的参数名、JSON 字段和命令示例保持英文，以便直接复制执行。
+
+## Why MediaForge / 为什么选择 MediaForge
 
 FFmpeg is powerful but exposes a large, stateful command surface. MediaForge adds the agent-facing contract around it:
 
@@ -16,9 +20,13 @@ FFmpeg is powerful but exposes a large, stateful command surface. MediaForge add
 - an explicit Raw FFmpeg escape hatch for advanced cases;
 - a versioned Tool API schema and an installable Agent Skill.
 
-## Install
+简单来说，FFmpeg 负责真正的媒体编解码，MediaForge 负责把它包装成 Agent 更容易理解和调用的可靠执行层：Agent 不必手写复杂 FFmpeg 参数，也能获得可预测的计划、结构化错误和执行后验证。
+
+## Install / 安装
 
 ### 普通用户：下载预编译版（推荐）
+
+MediaForge 本身只是一个很小的二进制文件；运行时只依赖 FFmpeg 和 FFprobe。普通用户无需安装 Rust，先安装一次 FFmpeg，再执行对应平台的一键安装命令即可。
 
 MediaForge itself is a small binary; FFmpeg and FFprobe are the only runtime
 dependencies. Install FFmpeg once, then use the matching one-line installer.
@@ -38,13 +46,17 @@ choco install ffmpeg
 irm https://raw.githubusercontent.com/Lhy723/mediaforge/main/scripts/install.ps1 | iex
 ```
 
+安装器会自动选择 macOS Apple Silicon/Intel、Linux x64 或 Windows x64 的最新版本，Unix 安装到 `~/.local/bin`，Windows 安装到 `%LOCALAPPDATA%\\MediaForge\\bin`，并提示 PATH 配置方式。可以通过 `MEDIAFORGE_VERSION=v0.1.0` 固定安装版本。
+
 The installer selects the current release for macOS Apple Silicon/Intel, Linux
 x64, or Windows x64, places `media` in `~/.local/bin` (Unix) or
 `%LOCALAPPDATA%\\MediaForge\\bin` (Windows), and prints the final `PATH`
 hint. To install a specific release, set `MEDIAFORGE_VERSION`, for example
 `MEDIAFORGE_VERSION=v0.1.0`.
 
-### From source
+### From source / 源码安装
+
+开发者或需要使用尚未发布代码时，才需要 Rust/Cargo：
 
 For development or an unreleased checkout, Rust/Cargo is also required:
 
@@ -59,11 +71,13 @@ cargo build --release --bin media
 ./target/release/media capabilities --json
 ```
 
-## Supported platforms
+## Supported platforms / 支持平台
 
 MediaForge is tested and packaged for macOS, Linux, and Windows x64. Install
 FFmpeg and FFprobe on `PATH` before using the CLI. On Windows, the release
 binary is `media.exe`; the same semantic commands and JSON Tool API apply.
+
+当前提供 macOS、Linux 和 Windows x64 支持。MediaForge 不捆绑 FFmpeg；请确保 `ffmpeg` 和 `ffprobe` 已经在 `PATH` 中。Windows 发布包中的程序名为 `media.exe`，命令语义和 JSON Tool API 与 Unix 平台一致。
 
 For a source build on Windows:
 
@@ -76,9 +90,11 @@ cargo build --release --bin media
 The Windows acceptance workflow runs through Git Bash and accepts either
 `python3` or `python` for its small JSON assertions.
 
-## Agent workflow
+## Agent workflow / Agent 工作流
 
 The normal CLI is useful during development and for shell-based agents:
+
+普通 CLI 适合开发调试，也适合由 Shell Agent 调用。推荐流程是：先 `inspect` 获取媒体信息，再 `plan` 预览决策，之后 `convert` 或其他操作，最后 `verify` 检查结果。
 
 ```bash
 media inspect input.mkv --json
@@ -89,7 +105,9 @@ media verify input.mkv output.mp4 --json
 
 All transformation commands accept `--dry-run`. JSON is emitted only on stdout; FFmpeg diagnostics stay on stderr and can be enabled with `--verbose` or `--debug`. Long-running transformations support `--progress`: human CLI mode prints percentage, elapsed time, estimated remaining time, and speed, while `--json`/Tool mode emits the same measurements as progress NDJSON on stderr without breaking the one-response JSON contract.
 
-## Operations
+## Operations / 支持的操作
+
+下面的操作名可以直接用于 CLI，也可以作为 JSON Tool API 的 `operation` 字段。完整字段定义见 [`schemas/tool-api.json`](schemas/tool-api.json)。
 
 ```text
 inspect, plan, convert, compress, resize, clip, extract-audio, thumbnail,
@@ -144,9 +162,11 @@ warnings, hardware, subtitle, and metadata decisions alongside the
 verification result so an Agent does not need to reconstruct those decisions
 from FFmpeg output.
 
-## JSON Tool entrypoint
+## JSON Tool entrypoint / JSON Tool 入口
 
 Agents can send one request object over stdin. The response is always one JSON object on stdout:
+
+Agent 可以通过 stdin 发送一个 JSON 请求对象；stdout 始终只返回一个 JSON 对象，FFmpeg 日志和进度写入 stderr，不会污染 Agent 的响应解析。
 
 ```bash
 printf '%s\n' '{"operation":"plan","input":"input.mkv","output_format":"mp4"}' \
@@ -163,9 +183,11 @@ printf '%s\n' '{"operation":"ffmpeg","args":["-i","input.mp4","-vf","scale=1280:
   | media tool
 ```
 
-## Configuration
+## Configuration / 配置
 
 MediaForge reads an optional TOML file from `MEDIAFORGE_CONFIG`, `$XDG_CONFIG_HOME/mediaforge/config.toml`, or `~/.config/mediaforge/config.toml`.
+
+MediaForge 支持可选的 TOML 配置文件，可通过 `MEDIAFORGE_CONFIG` 指定，也可以放在 `$XDG_CONFIG_HOME/mediaforge/config.toml` 或 `~/.config/mediaforge/config.toml`。配置不会隐式开启覆盖写入。
 
 ```toml
 default_quality = "balanced"
@@ -185,7 +207,7 @@ Configuration applies to both the CLI and Tool entrypoint. It can provide prefer
 
 Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding, while `--hardware gpu` probes FFmpeg's available hardware encoder for the requested codec. `media capabilities --json` reports both a structured `hardware_acceleration` map and the available encoder lists. If the runtime cannot create a hardware session, MediaForge returns `HARDWARE_UNAVAILABLE` with a CPU fallback suggestion.
 
-## Project map
+## Project map / 项目结构
 
 - [`schemas/tool-api.json`](schemas/tool-api.json) — machine-readable Tool API contract.
 - [`skills/mediaforge/SKILL.md`](skills/mediaforge/SKILL.md) — instructions for an AI agent using the tool.
@@ -197,12 +219,18 @@ Hardware encoding is opt-in: `--hardware auto` keeps deterministic CPU encoding,
 - [`docs/prd-v1-compliance.md`](docs/prd-v1-compliance.md) — requirement-to-test traceability for the V1 release gate.
 - [`docs/index.html`](docs/index.html) — static agent-facing documentation page and API examples.
 
-## Status
+如果你要接入 Agent，优先阅读 `skills/mediaforge/SKILL.md` 和 `schemas/tool-api.json`；如果你要参与开发，阅读 `docs/development.md`。
+
+## Status / 项目状态
 
 MediaForge is an early, working Rust implementation. The current release focuses on deterministic local processing through FFmpeg/FFprobe. Remote storage, model-powered editing decisions, and a long-running job service are intentionally outside this first CLI milestone.
 
-## Contributing and license
+这是一个正在持续迭代的 Rust 实现。当前版本聚焦于本地、确定性的媒体处理；远程存储、模型驱动的剪辑决策和长期运行的任务服务暂不属于首个 CLI 里程碑。
+
+## Contributing and license / 贡献与许可证
 
 Bug reports and focused pull requests are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md) before opening an issue.
+
+欢迎提交 Bug 和聚焦明确的 Pull Request。提交 Issue 前请先阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md) 和 [`SECURITY.md`](SECURITY.md)。
 
 MediaForge is released under the [MIT License](LICENSE).
