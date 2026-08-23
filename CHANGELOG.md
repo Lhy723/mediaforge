@@ -77,3 +77,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Added ISO authoring actions with capability-aware selection of `xorriso`,
   `genisoimage`, `mkisofs`, or macOS `hdiutil`, including structured
   `DISC_TOOL_UNAVAILABLE` and `DISC_TOOL_FAILED` errors.
+- Promoted Windows x64 to a first-class platform: `.exe`/`PATHEXT` tool
+  discovery, `APPDATA` config fallback, Windows acceptance in CI, and zipped
+  release artifacts are now covered alongside macOS and Linux.

@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python3 - <<'PY'
+if command -v python3 >/dev/null; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null; then
+  PYTHON_BIN="python"
+else
+  echo "docs validation: Python 3 is required" >&2
+  exit 2
+fi
+
+"$PYTHON_BIN" - <<'PY'
 from html.parser import HTMLParser
 from pathlib import Path
 

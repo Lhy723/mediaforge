@@ -31,6 +31,21 @@ cargo build --release --bin media
 ./target/release/media capabilities --json
 ```
 
+## Supported platforms
+
+MediaForge is tested and packaged for macOS, Linux, and Windows x64. Install
+FFmpeg and FFprobe on `PATH` before using the CLI. On Windows, the release
+binary is `media.exe`; the same semantic commands and JSON Tool API apply.
+
+```powershell
+choco install ffmpeg --yes
+cargo build --release --bin media
+.\target\release\media.exe capabilities --json
+```
+
+The Windows acceptance workflow runs through Git Bash and accepts either
+`python3` or `python` for its small JSON assertions.
+
 ## Agent workflow
 
 The normal CLI is useful during development and for shell-based agents:

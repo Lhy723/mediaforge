@@ -20,6 +20,8 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
 
     steps:
       - name: Check out source
@@ -33,7 +35,8 @@ jobs:
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} --bin media
 
-      - name: Package archive
+      - name: Package Unix archive
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
@@ -41,7 +44,22 @@ jobs:
           cp target/${{ matrix.target }}/release/media dist/package/media
           tar -C dist/package -czf "dist/mediaforge-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" media
 
-      - name: Publish GitHub Release asset
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/package | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/media.exe" "dist/package/media.exe"
+          Compress-Archive -Path "dist/package/media.exe" -DestinationPath "dist/mediaforge-${{ github.ref_name }}-${{ matrix.target }}.zip" -Force
+
+      - name: Publish Unix GitHub Release asset
+        if: runner.os != 'Windows'
         uses: softprops/action-gh-release@v2
         with:
           files: dist/mediaforge-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+
+      - name: Publish Windows GitHub Release asset
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/mediaforge-${{ github.ref_name }}-${{ matrix.target }}.zip

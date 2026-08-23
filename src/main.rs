@@ -1064,6 +1064,10 @@ fn config_path() -> Option<PathBuf> {
     if let Some(path) = std::env::var_os("XDG_CONFIG_HOME") {
         return Some(PathBuf::from(path).join("mediaforge/config.toml"));
     }
+    #[cfg(windows)]
+    if let Some(path) = std::env::var_os("APPDATA") {
+        return Some(PathBuf::from(path).join("mediaforge/config.toml"));
+    }
     std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config/mediaforge/config.toml"))
 }
 
@@ -4227,7 +4231,26 @@ fn program_available(program: &str) -> bool {
     };
     std::env::split_paths(&path_var).any(|directory| {
         let candidate = directory.join(program);
-        candidate.is_file() && (cfg!(unix) || candidate.extension().is_some())
+        if candidate.is_file() {
+            return true;
+        }
+        #[cfg(windows)]
+        {
+            if Path::new(program).extension().is_some() {
+                return false;
+            }
+            let path_ext =
+                std::env::var_os("PATHEXT").unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".into());
+            return path_ext
+                .to_string_lossy()
+                .split(';')
+                .filter(|extension| !extension.is_empty())
+                .any(|extension| directory.join(format!("{program}{extension}")).is_file());
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
     })
 }
 

@@ -23,7 +23,7 @@ in the repository. The authoritative specification remains
 | Capabilities and hardware | Reports FFmpeg/platform/architecture, acceleration backends, and available encoders; explicit GPU requests probe an encoder before execution. | Acceptance validates the capabilities object; Rust tests cover encoder selection. Actual GPU session creation remains host-dependent and returns `HARDWARE_UNAVAILABLE` with a CPU fallback when the runtime cannot create it. |
 | Configuration | Applies quality, codec, hardware, verification, and progress defaults without allowing config to weaken overwrite safety. | Acceptance loads a temporary TOML config and checks effective plan defaults; overwrite still requires an explicit CLI/Tool request. |
 | Agent Skill | Provides workflow, safety, error handling, Tool use, and Raw FFmpeg routing instructions plus discovery metadata. | `skills/mediaforge/SKILL.md` and `skills/mediaforge/agents/openai.yaml` pass the bundled skill validator. |
-| Platforms and release gate | Builds and runs on the V1 target platforms. | GitHub Actions runs formatting, tests, Clippy, release build, and the full acceptance script on Ubuntu and macOS. |
+| Platforms and release gate | Builds and runs on macOS, Linux, and Windows x64 with platform-specific FFmpeg discovery and release packaging. | GitHub Actions runs formatting, tests, Clippy, release build, and the full acceptance script on Ubuntu, macOS, and Windows; tagged releases publish Linux/macOS archives plus a Windows `.zip`. |
 
 ## Format Factory parity boundary
 
