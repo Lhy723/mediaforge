@@ -118,7 +118,22 @@ final output; hardware encoding remains single-pass for portability.
    platform permissions and optional utilities remain visible in warnings and
    capabilities.
 
-The single-file implementation is deliberate for this first milestone: the
-behavioral contract is still moving. As operations grow, the next natural
-split is `model`, `probe`, `plan`, `execute`, and `verify` modules without
-changing the Tool API.
+## Source layout
+
+The binary entry point in `src/main.rs` is intentionally thin; it delegates to
+`src/app/`. The application is split along stable maintenance boundaries while
+keeping the CLI and Tool API unchanged:
+
+- `model`, `state`, `error`, and `config` define input models, runtime context,
+  structured errors, and configuration loading.
+- `process`, `paths`, `format`, and `parse` isolate FFmpeg/FFprobe execution,
+  output safety, format/codec policy, and user-value parsing.
+- `convert`, `basic`, `image`, `edit`, `merge`, `audio`, `disc`, `presets`,
+  `batch`, and `capabilities` own the corresponding operation planners and
+  command handlers.
+- `execution` and `verify` centralize output execution and post-operation
+  validation; `tool` and `dispatch` preserve the agent-facing routing layer.
+
+Each operation module can evolve independently, while shared policy remains in
+the lower-level modules. This keeps individual source files reviewable without
+changing the deterministic inspect → plan → execute → verify contract.
