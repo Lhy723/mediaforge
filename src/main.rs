@@ -57,6 +57,7 @@ enum Command {
     ExtractAudio(ExtractAudioArgs),
     Thumbnail(ThumbnailArgs),
     Image(ImageArgs),
+    Gif(GifArgs),
     Edit(EditArgs),
     Merge(MergeArgs),
     Audio(AudioArgs),
@@ -113,6 +114,8 @@ struct PlanArgs {
     format: Option<String>,
     #[arg(long)]
     at: Option<String>,
+    #[arg(long)]
+    fps: Option<u32>,
     #[arg(long, help = "Device output preset, for example iphone or psp")]
     device: Option<String>,
     #[arg(long)]
@@ -130,6 +133,8 @@ struct PlanArgs {
     #[arg(long)]
     subtitle: Option<PathBuf>,
     #[arg(long)]
+    subtitle_style: Option<String>,
+    #[arg(long)]
     watermark: Option<PathBuf>,
     #[arg(long)]
     image_quality: Option<u8>,
@@ -143,6 +148,10 @@ struct PlanArgs {
     reencode: bool,
     #[arg(long)]
     kind: Option<String>,
+    #[arg(long, default_value = "extract")]
+    action: String,
+    #[arg(long)]
+    volume_label: Option<String>,
     #[arg(long, default_value = "concat")]
     mode: String,
 }
@@ -241,6 +250,21 @@ struct ImageArgs {
 }
 
 #[derive(Args, Debug, Clone)]
+struct GifArgs {
+    input: PathBuf,
+    #[arg(long, default_value = "0", help = "Start position in seconds or HH:MM:SS")]
+    start: String,
+    #[arg(long, default_value = "3", help = "Animated GIF duration in seconds")]
+    duration: String,
+    #[arg(long, default_value_t = 12, help = "GIF frame rate between 1 and 60")]
+    fps: u32,
+    #[arg(long, help = "Output width; height preserves aspect ratio")]
+    width: Option<u32>,
+    #[arg(long)]
+    output: Option<PathBuf>,
+}
+
+#[derive(Args, Debug, Clone)]
 struct EditArgs {
     input: PathBuf,
     #[arg(long)]
@@ -257,6 +281,8 @@ struct EditArgs {
     filter: Option<String>,
     #[arg(long, help = "Burn an external subtitle file into the video")]
     subtitle: Option<PathBuf>,
+    #[arg(long, help = "ASS/SSA force_style string, e.g. FontSize=24,PrimaryColour=&H00FFFFFF")]
+    subtitle_style: Option<String>,
     #[arg(long)]
     start: Option<String>,
     #[arg(long)]
@@ -308,6 +334,10 @@ struct DiscArgs {
     input: PathBuf,
     #[arg(long, default_value = "dvd", help = "Disc source kind: dvd, cd, or iso")]
     kind: String,
+    #[arg(long, default_value = "extract", help = "Disc action: extract or create-iso")]
+    action: String,
+    #[arg(long, help = "ISO volume label when creating an image")]
+    volume_label: Option<String>,
     #[arg(long, help = "Target output format, for example mp4 or flac")]
     to: Option<String>,
     #[arg(long)]
@@ -397,6 +427,7 @@ struct ToolRequest {
     end: Option<String>,
     format: Option<String>,
     at: Option<String>,
+    fps: Option<u32>,
     device: Option<String>,
     mode: Option<String>,
     crop: Option<String>,
@@ -405,6 +436,7 @@ struct ToolRequest {
     volume: Option<f64>,
     filter: Option<String>,
     subtitle: Option<String>,
+    subtitle_style: Option<String>,
     watermark: Option<String>,
     image_quality: Option<u8>,
     height: Option<u32>,
@@ -413,6 +445,8 @@ struct ToolRequest {
     channels: Option<u8>,
     reencode: Option<bool>,
     kind: Option<String>,
+    action: Option<String>,
+    volume_label: Option<String>,
     recursive: Option<bool>,
     output_dir: Option<String>,
     args: Option<Vec<String>>,
@@ -658,6 +692,7 @@ fn dispatch(context: &Context, command: Command) -> Result<Value, AppError> {
         Command::ExtractAudio(args) => extract_audio_command(context, &args),
         Command::Thumbnail(args) => thumbnail_command(context, &args),
         Command::Image(args) => image_command(context, &args),
+        Command::Gif(args) => gif_command(context, &args),
         Command::Edit(args) => edit_command(context, &args),
         Command::Merge(args) => merge_command(context, &args),
         Command::Audio(args) => audio_command(context, &args),
@@ -738,6 +773,7 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 end: request.end.clone(),
                 format: request.format.clone(),
                 at: request.at.clone(),
+                fps: request.fps,
                 device: request.device.clone(),
                 height: request.height,
                 crop: request.crop.clone(),
@@ -746,6 +782,7 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 volume: request.volume,
                 filter: request.filter.clone(),
                 subtitle: request.subtitle.clone().map(PathBuf::from),
+                subtitle_style: request.subtitle_style.clone(),
                 watermark: request.watermark.clone().map(PathBuf::from),
                 image_quality: request.image_quality,
                 bitrate: request.bitrate.clone(),
@@ -753,6 +790,8 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 channels: request.channels,
                 reencode: request.reencode.unwrap_or(false),
                 kind: request.kind.clone(),
+                action: request.action.clone().unwrap_or_else(|| "extract".to_string()),
+                volume_label: request.volume_label.clone(),
                 mode: request.mode.clone().unwrap_or_else(|| "concat".to_string()),
             }),
         ),
@@ -827,6 +866,17 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 image_quality: request.image_quality,
             }),
         ),
+        "gif" | "video_to_gif" | "gif_convert" => dispatch(
+            &tool_context,
+            Command::Gif(GifArgs {
+                input: input()?,
+                start: request.start.clone().unwrap_or_else(|| "0".to_string()),
+                duration: request.duration.clone().unwrap_or_else(|| "3".to_string()),
+                fps: request.fps.unwrap_or(12),
+                width: request.width,
+                output: request.output.clone().map(PathBuf::from),
+            }),
+        ),
         "edit" | "edit_media" => dispatch(
             &tool_context,
             Command::Edit(EditArgs {
@@ -838,6 +888,7 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
                 volume: request.volume,
                 filter: request.filter.clone(),
                 subtitle: request.subtitle.clone().map(PathBuf::from),
+                subtitle_style: request.subtitle_style.clone(),
                 start: request.start.clone(),
                 duration: request.duration.clone(),
             }),
@@ -885,7 +936,9 @@ fn tool_command(context: &Context, args: &ToolArgs) -> Result<Value, AppError> {
             &tool_context,
             Command::Disc(DiscArgs {
                 input: input()?,
-                kind: request.kind.clone().unwrap_or_else(|| operation.clone()),
+                kind: request.kind.clone().unwrap_or_else(|| default_disc_kind(&operation)),
+                action: request.action.clone().unwrap_or_else(|| "extract".to_string()),
+                volume_label: request.volume_label.clone(),
                 to: request.output_format.clone().or(request.format.clone()),
                 output: request.output.clone().map(PathBuf::from),
             }),
@@ -970,6 +1023,13 @@ fn required_string(value: Option<String>, field: &str) -> Result<String, AppErro
     value
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| AppError::new("INVALID_ARGUMENT", format!("Tool requests require {field}.")))
+}
+
+fn default_disc_kind(operation: &str) -> String {
+    match operation {
+        "dvd" | "cd" | "iso" => operation.to_string(),
+        _ => "dvd".to_string(),
+    }
 }
 
 fn parse_quality_name(value: String) -> Result<Quality, AppError> {
@@ -1169,6 +1229,19 @@ fn plan_command(context: &Context, args: &PlanArgs) -> Result<Value, AppError> {
                 },
             );
         }
+        "gif" | "video_to_gif" | "gif_convert" => {
+            return gif_command(
+                &planning_context,
+                &GifArgs {
+                    input: args.input.clone(),
+                    start: args.start.clone().unwrap_or_else(|| "0".to_string()),
+                    duration: args.duration.clone().unwrap_or_else(|| "3".to_string()),
+                    fps: args.fps.unwrap_or(12),
+                    width: args.width,
+                    output: args.output.clone(),
+                },
+            );
+        }
         "edit" | "edit_media" => {
             return edit_command(
                 &planning_context,
@@ -1181,6 +1254,7 @@ fn plan_command(context: &Context, args: &PlanArgs) -> Result<Value, AppError> {
                     volume: args.volume,
                     filter: args.filter.clone(),
                     subtitle: args.subtitle.clone(),
+                    subtitle_style: args.subtitle_style.clone(),
                     start: args.start.clone(),
                     duration: args.duration.clone(),
                 },
@@ -1233,7 +1307,9 @@ fn plan_command(context: &Context, args: &PlanArgs) -> Result<Value, AppError> {
                 &planning_context,
                 &DiscArgs {
                     input: args.input.clone(),
-                    kind: args.kind.clone().unwrap_or_else(|| operation.clone()),
+                    kind: args.kind.clone().unwrap_or_else(|| default_disc_kind(&operation)),
+                    action: args.action.clone(),
+                    volume_label: args.volume_label.clone(),
                     to: args.to.clone().or(args.format.clone()),
                     output: args.output.clone(),
                 },
@@ -2348,6 +2424,92 @@ fn image_command(context: &Context, args: &ImageArgs) -> Result<Value, AppError>
     finish_custom_plan(context, &args.input, plan)
 }
 
+fn gif_command(context: &Context, args: &GifArgs) -> Result<Value, AppError> {
+    const MAX_GIF_DURATION_SECONDS: f64 = 600.0;
+    const MAX_GIF_WIDTH: u32 = 16_384;
+    ensure_input(&args.input)?;
+    let probe = probe_media(&args.input, context.verbose)?;
+    let streams = probe.raw.get("streams").and_then(Value::as_array).cloned().unwrap_or_default();
+    if first_stream(&streams, "video").is_none() {
+        return Err(AppError::new("INVALID_MEDIA", "GIF conversion requires a video stream."));
+    }
+    if !(1..=60).contains(&args.fps) {
+        return Err(AppError::new("INVALID_ARGUMENT", "GIF FPS must be between 1 and 60."));
+    }
+    let start_seconds = parse_time_seconds(&args.start)?;
+    if !start_seconds.is_finite() {
+        return Err(AppError::new("INVALID_ARGUMENT", "GIF start must be a finite timestamp."));
+    }
+    if start_seconds < 0.0 {
+        return Err(AppError::new("INVALID_ARGUMENT", "GIF start must not be negative."));
+    }
+    let duration_seconds = parse_time_seconds(&args.duration)?;
+    if !duration_seconds.is_finite() {
+        return Err(AppError::new("INVALID_ARGUMENT", "GIF duration must be a finite value."));
+    }
+    if duration_seconds <= 0.0 {
+        return Err(AppError::new("INVALID_ARGUMENT", "GIF duration must be greater than zero."));
+    }
+    if duration_seconds > MAX_GIF_DURATION_SECONDS {
+        return Err(AppError::new(
+            "INVALID_ARGUMENT",
+            format!("GIF duration must not exceed {MAX_GIF_DURATION_SECONDS:.0} seconds."),
+        )
+        .with_suggestions(&["Use a shorter clip or split a long animation into multiple GIFs."]));
+    }
+    if args.width.is_some_and(|width| width > MAX_GIF_WIDTH) {
+        return Err(AppError::new(
+            "INVALID_ARGUMENT",
+            format!("GIF width must not exceed {MAX_GIF_WIDTH} pixels."),
+        ));
+    }
+    validate_positive_dimension(args.width, "GIF width")?;
+    let output = resolve_output(context, &args.input, args.output.as_deref(), "gif")?;
+    let mut filters = vec![format!("fps={}", args.fps)];
+    if let Some(width) = args.width {
+        filters.push(format!("scale={width}:-1:flags=lanczos"));
+    }
+    let filter = format!(
+        "{},split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=sierra2_4a",
+        filters.join(",")
+    );
+    let ffmpeg_args = vec![
+        "-ss".to_string(),
+        args.start.clone(),
+        "-i".to_string(),
+        args.input.to_string_lossy().to_string(),
+        "-t".to_string(),
+        args.duration.clone(),
+        "-an".to_string(),
+        "-vf".to_string(),
+        filter.clone(),
+        "-loop".to_string(),
+        "0".to_string(),
+        "-f".to_string(),
+        "gif".to_string(),
+    ];
+    let plan = OperationPlan {
+        value: json!({
+            "status": "success",
+            "operation": "gif",
+            "input": absolute_display(&args.input),
+            "output": absolute_display(&output),
+            "start": args.start,
+            "duration": args.duration,
+            "fps": args.fps,
+            "width": args.width,
+            "strategy": "palette_gif",
+            "quality_loss": "video_only",
+            "filter": filter,
+            "ffmpeg_args": ffmpeg_args,
+        }),
+        output,
+        args: ffmpeg_args,
+        strategy: "palette_gif".to_string(),
+    };
+    finish_custom_plan(context, &args.input, plan)
+}
+
 fn parse_crop(value: &str) -> Result<String, AppError> {
     let parts = value.split(':').collect::<Vec<_>>();
     if parts.len() != 4 || parts.iter().any(|part| part.trim().is_empty()) {
@@ -2395,6 +2557,42 @@ fn escape_filter_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "\\\\").replace(':', "\\:").replace('\'', "\\'")
 }
 
+fn subtitle_filter(path: &Path, style: Option<&str>) -> Result<String, AppError> {
+    let mut filter = format!("subtitles={}", escape_filter_path(path));
+    if let Some(style) = style {
+        let style = style.trim();
+        if style.is_empty() || !style.contains('=') {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Subtitle style must contain comma-separated key=value pairs.",
+            ));
+        }
+        if style.chars().any(|character| {
+            !(character.is_ascii_alphanumeric() || " =,.:_&#%+-/".contains(character))
+        }) {
+            return Err(AppError::new(
+                "INVALID_ARGUMENT",
+                "Subtitle style contains unsupported filter characters.",
+            )
+            .with_suggestions(&[
+                "Use values such as FontName=Arial,FontSize=24,PrimaryColour=&H00FFFFFF.",
+            ]));
+        }
+        filter.push_str(":force_style='");
+        filter.push_str(style);
+        filter.push('\'');
+    }
+    Ok(filter)
+}
+
+fn ffmpeg_filter_available(context: &Context, name: &str) -> bool {
+    run_program("ffmpeg", &["-hide_banner", "-filters"], context.verbose).ok().is_some_and(
+        |result| {
+            result.stdout.lines().any(|line| line.split_whitespace().any(|token| token == name))
+        },
+    )
+}
+
 fn edit_command(context: &Context, args: &EditArgs) -> Result<Value, AppError> {
     ensure_input(&args.input)?;
     let probe = probe_media(&args.input, context.verbose)?;
@@ -2415,6 +2613,22 @@ fn edit_command(context: &Context, args: &EditArgs) -> Result<Value, AppError> {
     if let Some(subtitle) = &args.subtitle {
         ensure_input(subtitle)?;
     }
+    if args.subtitle.is_none() && args.subtitle_style.is_some() {
+        return Err(AppError::new("INVALID_ARGUMENT", "Subtitle style requires --subtitle."));
+    }
+    let subtitle_filter_available =
+        args.subtitle.as_ref().is_none_or(|_| ffmpeg_filter_available(context, "subtitles"));
+    if args.subtitle.is_some() && !subtitle_filter_available && !context.dry_run {
+        return Err(AppError::new(
+            "FILTER_UNAVAILABLE",
+            "The installed FFmpeg build does not include the subtitles/libass filter.",
+        )
+        .with_details(json!({"filter":"subtitles","subtitle":args.subtitle.as_ref().map(|path| absolute_display(path))}))
+        .with_suggestions(&[
+            "Install an FFmpeg build compiled with libass, then retry.",
+            "Use a subtitle stream conversion operation when burn-in is not required.",
+        ]));
+    }
     let output = resolve_output(context, &args.input, args.output.as_deref(), "mp4")?;
     let mut video_filters = Vec::new();
     if let Some(crop) = &args.crop {
@@ -2430,7 +2644,7 @@ fn edit_command(context: &Context, args: &EditArgs) -> Result<Value, AppError> {
         video_filters.push(format!("setpts=PTS/{speed:.6}"));
     }
     if let Some(subtitle) = &args.subtitle {
-        video_filters.push(format!("subtitles={}", escape_filter_path(subtitle)));
+        video_filters.push(subtitle_filter(subtitle, args.subtitle_style.as_deref())?);
     }
     let mut ffmpeg_args = Vec::new();
     if let Some(start) = &args.start {
@@ -2486,6 +2700,12 @@ fn edit_command(context: &Context, args: &EditArgs) -> Result<Value, AppError> {
             "volume": args.volume,
             "filter": args.filter,
             "subtitle": args.subtitle.as_ref().map(|path| absolute_display(path)),
+            "subtitle_style": args.subtitle_style,
+            "warnings": if args.subtitle.is_some() && !subtitle_filter_available {
+                vec!["The current FFmpeg build lacks the subtitles/libass filter; execution is unavailable.".to_string()]
+            } else {
+                Vec::new()
+            },
             "audio_present": first_stream(&streams, "audio").is_some(),
             "quality_loss": "video_and_audio",
             "ffmpeg_args": ffmpeg_args,
@@ -2853,6 +3073,10 @@ fn disc_command(context: &Context, args: &DiscArgs) -> Result<Value, AppError> {
     if !["dvd", "cd", "iso"].contains(&kind.as_str()) {
         return Err(AppError::new("INVALID_ARGUMENT", "Disc kind must be dvd, cd, or iso."));
     }
+    let action = normalize_disc_action(&args.action)?;
+    if action == "create_iso" {
+        return create_iso_command(context, args, &kind);
+    }
     let default_format = if kind == "cd" { "flac" } else { "mp4" };
     let target = args.to.clone().unwrap_or_else(|| default_format.to_string());
     let (format, extension) = if kind == "cd" {
@@ -2892,6 +3116,7 @@ fn disc_command(context: &Context, args: &DiscArgs) -> Result<Value, AppError> {
             "status": "success",
             "operation": "disc",
             "kind": kind,
+            "action": action,
             "input": absolute_display(&args.input),
             "output": absolute_display(&output),
             "format": format,
@@ -2908,6 +3133,168 @@ fn disc_command(context: &Context, args: &DiscArgs) -> Result<Value, AppError> {
         },
     };
     finish_custom_plan(context, &args.input, plan)
+}
+
+fn normalize_disc_action(value: &str) -> Result<String, AppError> {
+    match value.to_lowercase().replace('-', "_").as_str() {
+        "extract" | "convert" | "remux" => Ok("extract".to_string()),
+        "create_iso" | "author" | "write_iso" => Ok("create_iso".to_string()),
+        other => {
+            Err(AppError::new("INVALID_ARGUMENT", format!("Unsupported disc action: {other}"))
+                .with_suggestions(&["Use --action extract or --action create-iso."]))
+        }
+    }
+}
+
+fn disc_authoring_tool() -> Option<&'static str> {
+    ["xorriso", "genisoimage", "mkisofs", "hdiutil"]
+        .into_iter()
+        .find(|tool| program_available(tool))
+}
+
+fn create_iso_command(context: &Context, args: &DiscArgs, kind: &str) -> Result<Value, AppError> {
+    if !args.input.is_dir() {
+        return Err(AppError::new(
+            "INVALID_ARGUMENT",
+            "ISO creation requires a directory containing the disc files.",
+        )
+        .with_suggestions(&[
+            "Mount or stage the DVD/CD contents in a directory, then pass that directory as input.",
+            "Use --action extract when the input is an existing ISO or media file.",
+        ]));
+    }
+    let output = resolve_output(context, &args.input, args.output.as_deref(), "iso")?;
+    let label =
+        args.volume_label.clone().unwrap_or_else(|| format!("MEDIAFORGE-{}", kind.to_uppercase()));
+    if label.is_empty() || label.len() > 32 || label.chars().any(|character| character.is_control())
+    {
+        return Err(AppError::new(
+            "INVALID_ARGUMENT",
+            "ISO volume label must be 1-32 printable characters.",
+        ));
+    }
+    let tool = disc_authoring_tool();
+    let (program, tool_args) = match tool {
+        Some("xorriso") => (
+            "xorriso".to_string(),
+            vec![
+                "-as".to_string(),
+                "mkisofs".to_string(),
+                "-quiet".to_string(),
+                "-J".to_string(),
+                "-R".to_string(),
+                "-V".to_string(),
+                label.clone(),
+                "-o".to_string(),
+                output.to_string_lossy().to_string(),
+                args.input.to_string_lossy().to_string(),
+            ],
+        ),
+        Some("genisoimage") | Some("mkisofs") => {
+            let program = tool.unwrap().to_string();
+            (
+                program,
+                vec![
+                    "-quiet".to_string(),
+                    "-J".to_string(),
+                    "-R".to_string(),
+                    "-V".to_string(),
+                    label.clone(),
+                    "-o".to_string(),
+                    output.to_string_lossy().to_string(),
+                    args.input.to_string_lossy().to_string(),
+                ],
+            )
+        }
+        Some("hdiutil") => (
+            "hdiutil".to_string(),
+            vec![
+                "makehybrid".to_string(),
+                "-ov".to_string(),
+                "-o".to_string(),
+                output.to_string_lossy().to_string(),
+                "-hfs".to_string(),
+                "-joliet".to_string(),
+                "-iso".to_string(),
+                "-default-volume-name".to_string(),
+                label.clone(),
+                args.input.to_string_lossy().to_string(),
+            ],
+        ),
+        _ => (String::new(), Vec::new()),
+    };
+    let mut value = json!({
+        "status": "success",
+        "operation": "disc",
+        "action": "create_iso",
+        "kind": kind,
+        "input": absolute_display(&args.input),
+        "output": absolute_display(&output),
+        "format": "iso",
+        "strategy": "disc_authoring",
+        "tool": if program.is_empty() { Value::Null } else { json!(program) },
+        "tool_available": !program.is_empty(),
+        "tool_args": tool_args,
+        "volume_label": label,
+        "warnings": [
+            "ISO creation depends on an installed authoring utility; FFmpeg alone does not author ISO images.",
+            "This operation creates a filesystem image and does not bypass optical-media DRM."
+        ],
+    });
+    if context.dry_run {
+        value["status"] = json!("planned");
+        value["will_execute"] = json!(false);
+        return Ok(value);
+    }
+    if program.is_empty() {
+        return Err(AppError::new(
+            "DISC_TOOL_UNAVAILABLE",
+            "No ISO authoring utility was found on PATH.",
+        )
+        .with_details(json!({
+            "candidates": ["xorriso", "genisoimage", "mkisofs", "hdiutil"],
+            "input": absolute_display(&args.input),
+            "output": absolute_display(&output),
+        }))
+        .with_suggestions(&[
+            "Install xorriso, genisoimage, or mkisofs, then retry.",
+            "On macOS, hdiutil is normally available when the system permits it.",
+        ]));
+    }
+    let refs = tool_args.iter().map(String::as_str).collect::<Vec<_>>();
+    if let Err(error) = run_program(&program, &refs, context.verbose) {
+        return Err(AppError::new(
+            "DISC_TOOL_FAILED",
+            format!("{program} could not create the ISO image."),
+        )
+        .with_details(json!({
+            "tool": program,
+            "arguments": refs,
+            "cause": error.code,
+            "message": error.message,
+            "details": error.details,
+        }))
+        .with_suggestions(&[
+            "Check source-directory permissions and available disk space.",
+            "Run the same operation with --dry-run to inspect the authoring command.",
+        ]));
+    }
+    let size_bytes = fs::metadata(&output).map(|metadata| metadata.len()).unwrap_or(0);
+    if size_bytes == 0 {
+        return Err(AppError::new(
+            "DISC_TOOL_FAILED",
+            "ISO authoring completed without producing a non-empty output.",
+        )
+        .with_details(json!({"output": absolute_display(&output), "tool": program})));
+    }
+    value["status"] = json!("success");
+    value["output"] = json!(absolute_display(&output));
+    value["verification"] = json!({
+        "status": "success",
+        "valid": true,
+        "checks": {"size_bytes": size_bytes, "size_positive": true, "readable": true}
+    });
+    Ok(value)
 }
 
 fn device_presets() -> Vec<Value> {
@@ -3063,9 +3450,8 @@ fn verify_operation(
         Some("audio") => verify_audio_output(context, input, &plan.output),
         Some("thumbnail") => verify_thumbnail_output(context, &plan.output),
         Some("clip") => verify_clip_output(context, input, plan),
-        Some("image") | Some("edit") | Some("merge") | Some("repair") | Some("disc") => {
-            verify_transformed_output(context, input, plan)
-        }
+        Some("image") | Some("gif") | Some("edit") | Some("merge") | Some("repair")
+        | Some("disc") => verify_transformed_output(context, input, plan),
         _ => verify_value(context, input, &plan.output),
     }
 }
@@ -3087,7 +3473,7 @@ fn verify_transformed_output(
         _ => true,
     };
     let required_audio = match operation {
-        "image" => false,
+        "image" | "gif" => false,
         "edit" | "repair" => {
             plan.value.get("audio_present").and_then(Value::as_bool).unwrap_or(true)
         }
@@ -3452,10 +3838,22 @@ fn capabilities_command(context: &Context) -> Result<Value, AppError> {
         "vaapi": has_accel("vaapi"),
         "amf": has_encoder("h264_amf"),
     });
-    let external_tools = ["ffmpeg", "ffprobe", "drutil", "diskutil", "mount", "dvdbackup", "abcde"]
-        .into_iter()
-        .map(|tool| (tool, program_available(tool)))
-        .collect::<BTreeMap<_, _>>();
+    let external_tools = [
+        "ffmpeg",
+        "ffprobe",
+        "drutil",
+        "diskutil",
+        "mount",
+        "dvdbackup",
+        "abcde",
+        "xorriso",
+        "genisoimage",
+        "mkisofs",
+        "hdiutil",
+    ]
+    .into_iter()
+    .map(|tool| (tool, program_available(tool)))
+    .collect::<BTreeMap<_, _>>();
     Ok(json!({
         "status":"success",
         "ffmpeg":{"installed":version != "not installed","version":version},
@@ -3474,7 +3872,17 @@ fn capabilities_command(context: &Context) -> Result<Value, AppError> {
             },
             "device_presets":device_presets(),
             "external_tools":external_tools,
-            "operations":["inspect","plan","convert","compress","resize","clip","extract_audio","thumbnail","image","edit","merge","audio","repair","disc","batch","verify","capabilities","presets"],
+            "disc":{
+                "iso_authoring_tools":["xorriso","genisoimage","mkisofs","hdiutil"],
+                "iso_authoring_available":disc_authoring_tool().is_some(),
+                "note":"DVD/CD extraction and ISO authoring depend on OS permissions and optional utilities."
+            },
+            "filters":{
+                "subtitles":ffmpeg_filter_available(context, "subtitles"),
+                "named_video_filters":["grayscale","blur","sharpen","vintage"],
+                "note":"Subtitle burn-in requires the FFmpeg subtitles/libass filter."
+            },
+            "operations":["inspect","plan","convert","compress","resize","clip","extract_audio","thumbnail","image","gif","edit","merge","audio","repair","disc","batch","verify","capabilities","presets"],
             "notes":[
             "Encoder availability is build-specific; an advertised format can still return ENCODER_UNAVAILABLE.",
             "DVD/CD device access and protected-media support depend on OS permissions and optional tools."
@@ -3790,7 +4198,9 @@ fn format_progress_time(seconds: f64) -> String {
 }
 
 fn decode_check(context: &Context, input: &Path) -> Result<(), AppError> {
-    let refs = ["-v", "error", "-i", &input.to_string_lossy(), "-f", "null", "-"];
+    // Decode only a bounded sample. This catches malformed headers/frames while
+    // avoiding an infinite read for intentionally looping animated GIFs.
+    let refs = ["-v", "error", "-t", "1", "-i", &input.to_string_lossy(), "-f", "null", "-"];
     run_program("ffmpeg", &refs, context.verbose).map(|_| ())
 }
 
@@ -4877,6 +5287,25 @@ mod tests {
         assert!(parse_crop("320x240").is_err());
         assert_eq!(named_video_filter("grayscale").unwrap(), "hue=s=0");
         assert_eq!(atempo_filter(4.0), "atempo=2.0,atempo=2.000000");
+    }
+
+    #[test]
+    fn subtitle_styles_and_disc_actions_are_bounded() {
+        let subtitle = subtitle_filter(
+            Path::new("captions.srt"),
+            Some("FontSize=24,PrimaryColour=&H00FFFFFF"),
+        )
+        .unwrap();
+        assert!(subtitle.contains("force_style='FontSize=24,PrimaryColour=&H00FFFFFF'"));
+        assert!(subtitle_filter(Path::new("captions.srt"), Some("bad;graph")).is_err());
+        assert!(normalize_disc_action("create-iso").is_ok());
+        assert_eq!(default_disc_kind("disc"), "dvd");
+    }
+
+    #[test]
+    fn gif_alias_is_normalized() {
+        assert!(normalize_operation("video-to-gif") == "video_to_gif");
+        assert_eq!(normalize_operation("gif-convert"), "gif_convert");
     }
 
     #[test]

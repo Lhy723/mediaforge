@@ -69,3 +69,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   capability reports, acceptance coverage, and Agent Skill guidance.
 - Added the dependency-free static documentation page at `docs/index.html` for
   agent workflows and operation examples.
+- Added palette-based video-to-GIF conversion with bounded FPS, duration, and
+  width controls, plus post-operation verification that the result is video-only.
+- Added ASS/SSA subtitle style forwarding through `force_style`, capability
+  probing for the FFmpeg `subtitles` filter, and structured `FILTER_UNAVAILABLE`
+  errors when the host lacks the required filter.
+- Added ISO authoring actions with capability-aware selection of `xorriso`,
+  `genisoimage`, `mkisofs`, or macOS `hdiutil`, including structured
+  `DISC_TOOL_UNAVAILABLE` and `DISC_TOOL_FAILED` errors.

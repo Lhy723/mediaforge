@@ -43,12 +43,14 @@ media clip source.mp4 --start 00:10:00 --duration 30 --json
 media extract-audio source.mp4 --format flac --json
 media thumbnail source.mp4 --at 50% --json
 media image source.png --to webp --width 1280 --image-quality 85 --json
+media gif source.mp4 --start 00:00:10 --duration 3 --fps 12 --width 480 --json
 media edit source.mp4 --crop 1280:720:0:0 --rotate 90 --speed 1.25 --volume 0.9 --json
 media merge first.mp4 second.mp4 --mode concat --json
 media audio source.mp4 --format mp3 --bitrate 128k --sample-rate 44100 --channels 2 --json
 media repair damaged.mp4 --reencode --json
 media convert source.mp4 --device iphone --json
 media disc /path/to/source --kind dvd --to mp4 --dry-run --json
+media disc /path/to/DVD --kind dvd --action create-iso --output dvd.iso --dry-run --json
 media verify source.mp4 output.mp4 --json
 ```
 
@@ -66,17 +68,22 @@ when the local FFmpeg build does not include a requested encoder.
 
 The image operation covers PNG, JPEG, WebP, GIF, BMP, TIFF, ICO, TGA, and AVIF
 where encoders exist, plus resize, rotate, watermark, and quality controls.
-The edit operation covers crop (`WIDTH:HEIGHT:X:Y`), rotation, speed (0.25–4),
-volume (0–10), named filters, subtitle burn-in, and time ranges. Merge modes
-are `concat`, `mux`, and `mix`. Audio conversion covers MP3, AAC/M4A, FLAC,
-WAV, Opus, OGG/Vorbis, WMA, AIFF, ALAC, AMR, AC-3, and MP2. Repair uses
+Use `gif` for an animated palette-optimized GIF with bounded start, duration,
+FPS, and width. The edit operation covers crop (`WIDTH:HEIGHT:X:Y`), rotation,
+speed (0.25–4), volume (0–10), named filters, subtitle burn-in,
+`--subtitle-style` ASS/SSA key-value pairs, and time ranges. If FFmpeg lacks
+the subtitles/libass filter, execution returns `FILTER_UNAVAILABLE`.
+Merge modes are `concat`, `mux`, and `mix`. Audio conversion covers MP3,
+AAC/M4A, FLAC, WAV, Opus, OGG/Vorbis, WMA, AIFF, ALAC, AMR, AC-3, and MP2. Repair uses
 timestamp/corruption-tolerant remuxing and may opt into H.264/AAC re-encoding.
 Run `media presets --json` for deterministic device profiles.
 
 `disc` is intentionally capability-aware. DVD/CD/ISO device access, mounting,
-permissions, CSS/DRM, and optional utilities are platform-dependent. Treat its
-warnings and `ENCODER_UNAVAILABLE`/`FFMPEG_FAILED` errors as actionable rather
-than assuming an optical drive is available.
+permissions, CSS/DRM, and optional utilities are platform-dependent. Use
+`--action create-iso` for filesystem-image authoring; it delegates to
+xorriso/genisoimage/mkisofs/hdiutil instead of pretending FFmpeg can author an
+ISO. Treat its warnings and `DISC_TOOL_UNAVAILABLE`/`DISC_TOOL_FAILED` errors as
+actionable rather than assuming an optical drive is available.
 
 ## JSON Tool calls
 

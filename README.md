@@ -48,7 +48,7 @@ All transformation commands accept `--dry-run`. JSON is emitted only on stdout; 
 
 ```text
 inspect, plan, convert, compress, resize, clip, extract-audio, thumbnail,
-image, edit, merge, audio, repair, disc, batch, verify, capabilities, presets
+image, gif, edit, merge, audio, repair, disc, batch, verify, capabilities, presets
 ```
 
 Examples:
@@ -62,12 +62,14 @@ media clip video.mp4 --start 00:10:00 --duration 30 --json
 media extract-audio video.mp4 --format flac --json
 media thumbnail video.mp4 --at 50% --json
 media image poster.png --to webp --width 1280 --image-quality 85 --json
+media gif video.mp4 --start 00:00:10 --duration 3 --fps 12 --width 480 --json
 media edit video.mp4 --crop 1280:720:0:0 --rotate 90 --speed 1.25 --json
 media merge first.mp4 second.mp4 --mode concat --json
 media audio video.mp4 --format mp3 --bitrate 128k --sample-rate 44100 --json
 media repair damaged.mp4 --reencode --json
 media convert video.mp4 --device psp --json
 media disc /Volumes/DVD --kind dvd --to mp4 --dry-run --json
+media disc /Volumes/DVD --kind dvd --action create-iso --output dvd.iso --dry-run --json
 media batch './videos/*.mov' --convert mp4 --json
 ```
 
@@ -77,9 +79,9 @@ Clipping uses stream copy when a zero-offset MP4 clip is compatible with the sou
 
 Container-aware defaults select H.264/AAC for MP4 and MOV, VP9/Opus for WebM, Theora/Opus for OGV, WMV2/WMA for WMV, and MPEG-2/MP2 for MPEG/VOB. Explicit codec/container combinations are validated before FFmpeg starts. The format matrix also includes AVI, FLV, 3GP, SWF, and common still-image formats; availability is checked against the installed FFmpeg build at execution time.
 
-The image subsystem supports PNG, JPEG, WebP, GIF, BMP, TIFF, ICO, TGA, and AVIF where the local FFmpeg image encoders are present. It can resize, rotate, apply a watermark, and select a quality value. `edit` covers crop, rotate, speed, volume, named filters (`grayscale`, `blur`, `sharpen`, `vintage`), subtitles, and time ranges. `merge` offers concat, video-plus-audio mux, and audio mix modes.
+The image subsystem supports PNG, JPEG, WebP, GIF, BMP, TIFF, ICO, TGA, and AVIF where the local FFmpeg image encoders are present. It can resize, rotate, apply a watermark, and select a quality value. `gif` creates an animated, palette-optimized GIF from a video with bounded start/duration/FPS/width controls. `edit` covers crop, rotate, speed, volume, named filters (`grayscale`, `blur`, `sharpen`, `vintage`), subtitle burn-in, ASS/SSA `force_style` parameters, and time ranges. Subtitle burn-in reports `FILTER_UNAVAILABLE` when FFmpeg lacks the libass subtitles filter. `merge` offers concat, video-plus-audio mux, and audio mix modes.
 
-`audio` supports MP3, AAC/M4A, FLAC, WAV, Opus, OGG/Vorbis, WMA, AIFF, ALAC, AMR, AC-3, and MP2, with bitrate, sample-rate, channel, volume, and range controls. `repair` attempts timestamp/corruption-tolerant remuxing and can opt into H.264/AAC re-encoding. `presets --json` exposes deterministic iPhone, iPad, Android, PSP, and car-player profiles. `disc` is a capability-aware FFmpeg bridge for DVD/CD/ISO sources; optical-device permissions, CSS/DRM, mounting, and optional tools remain platform-dependent and are surfaced as warnings or structured errors.
+`audio` supports MP3, AAC/M4A, FLAC, WAV, Opus, OGG/Vorbis, WMA, AIFF, ALAC, AMR, AC-3, and MP2, with bitrate, sample-rate, channel, volume, and range controls. `repair` attempts timestamp/corruption-tolerant remuxing and can opt into H.264/AAC re-encoding. `presets --json` exposes deterministic iPhone, iPad, Android, PSP, and car-player profiles. `disc` is a capability-aware FFmpeg bridge for DVD/CD/ISO sources; `--action create-iso` delegates filesystem-image creation to xorriso/genisoimage/mkisofs/hdiutil when available. Optical-device permissions, CSS/DRM, mounting, and optional tools remain platform-dependent and are surfaced as warnings or structured errors.
 
 Target-size compression uses two-pass software encoding when a hardware encoder is not selected, and reports the pass strategy in its plan and execution response. Hardware encodes remain single-pass because encoder support varies by platform.
 
@@ -106,7 +108,7 @@ printf '%s\n' '{"operation":"plan","input":"input.mkv","output_format":"mp4"}' \
   | media tool
 ```
 
-The Tool entrypoint accepts the semantic operations above plus `operation: "ffmpeg"` for the explicit escape hatch. For integrations that prefer verb-style names, the `*_media` aliases are stable, and image/edit/audio/repair/disc aliases are accepted as well. Request fields include `dry_run`, `overwrite`, `verify_after_execute`, `progress`, quality, hardware, codecs, device presets, format parameters, filter parameters, and merge inputs. A `plan` request can set `target_operation` explicitly; otherwise the same inference rules as the CLI apply. The full contract is [`schemas/tool-api.json`](schemas/tool-api.json).
+The Tool entrypoint accepts the semantic operations above plus `operation: "ffmpeg"` for the explicit escape hatch. For integrations that prefer verb-style names, the `*_media` aliases are stable, and image/gif/edit/audio/repair/disc aliases are accepted as well. Request fields include `dry_run`, `overwrite`, `verify_after_execute`, `progress`, quality, hardware, codecs, device presets, format parameters, FPS, subtitle styles, disc actions, filter parameters, and merge inputs. A `plan` request can set `target_operation` explicitly; otherwise the same inference rules as the CLI apply. The full contract is [`schemas/tool-api.json`](schemas/tool-api.json).
 
 ```bash
 printf '%s\n' '{"operation":"convert","input":"input.mkv","output":"output.mp4","dry_run":true}' \

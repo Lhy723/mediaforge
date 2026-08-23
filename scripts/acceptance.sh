@@ -107,6 +107,10 @@ ffmpeg -hide_banner -loglevel error -i "$SRC" -f srt -i "$WORK_DIR/caption.srt" 
   -map 0 -map 1:0 -c:v copy -c:a copy -c:s srt "$WORK_DIR/caption.mkv"
 "$BIN" plan "$WORK_DIR/caption.mkv" --to mp4 --json > "$WORK_DIR/plan-subtitle.json"
 assert_json "$WORK_DIR/plan-subtitle.json" "v['subtitle']['action'] == 'convert_to_mov_text' and len(v['warnings']) == 1"
+"$BIN" edit "$SRC" --subtitle "$WORK_DIR/caption.srt" \
+  --subtitle-style 'FontSize=18,PrimaryColour=&H00FFFFFF' --dry-run --json \
+  > "$WORK_DIR/plan-subtitle-style.json"
+assert_json "$WORK_DIR/plan-subtitle-style.json" "v['status'] == 'planned' and v['subtitle_style'].startswith('FontSize=18') and 'force_style' in ' '.join(v['ffmpeg_args'])"
 "$BIN" convert "$WORK_DIR/caption.mkv" --to mp4 --output "$WORK_DIR/caption.mp4" --json > "$WORK_DIR/caption.json"
 assert_json "$WORK_DIR/caption.json" "v['status'] == 'success' and v['verification']['valid'] is True"
 [[ "$(ffprobe -v error -select_streams s -show_entries stream=codec_name -of csv=p=0 "$WORK_DIR/caption.mp4")" == "mov_text" ]] || {
@@ -166,6 +170,14 @@ assert_json "$WORK_DIR/image.json" "v['status'] == 'success' and v['operation'] 
   exit 1
 }
 
+"$BIN" gif "$SRC" --duration 1 --fps 8 --width 96 \
+  --output "$WORK_DIR/preview.gif" --json > "$WORK_DIR/gif.json"
+assert_json "$WORK_DIR/gif.json" "v['status'] == 'success' and v['operation'] == 'gif' and v['verification']['valid'] is True"
+[[ "$(ffprobe -v error -show_entries format=format_name -of csv=p=0 "$WORK_DIR/preview.gif")" == "gif" ]] || {
+  echo "GIF conversion did not produce a GIF container" >&2
+  exit 1
+}
+
 "$BIN" edit "$SRC" --crop 160:120:0:0 --rotate 90 --speed 1.0 \
   --output "$WORK_DIR/edited.mp4" --json > "$WORK_DIR/edit.json"
 assert_json "$WORK_DIR/edit.json" "v['status'] == 'success' and v['operation'] == 'edit' and v['verification']['valid'] is True"
@@ -189,6 +201,12 @@ assert_json "$WORK_DIR/device.json" "v['status'] == 'planned' and v['device']['i
 
 "$BIN" disc "$SRC" --kind dvd --to mp4 --dry-run --json > "$WORK_DIR/disc.json"
 assert_json "$WORK_DIR/disc.json" "v['status'] == 'planned' and v['operation'] == 'disc' and v['kind'] == 'dvd'"
+mkdir -p "$WORK_DIR/disc-input"
+printf 'MediaForge ISO fixture\n' > "$WORK_DIR/disc-input/readme.txt"
+"$BIN" disc "$WORK_DIR/disc-input" --kind dvd --action create-iso \
+  --volume-label MEDIAFORGE --output "$WORK_DIR/fixture.iso" --dry-run --json \
+  > "$WORK_DIR/disc-create.json"
+assert_json "$WORK_DIR/disc-create.json" "v['status'] == 'planned' and v['action'] == 'create_iso' and v['tool_available'] in (True, False)"
 
 printf '%s\n' '{"operation":"plan","target_operation":"resize","input":"'"$SRC"'","resolution":"120p"}' \
   | "$BIN" tool > "$WORK_DIR/tool.json"
@@ -205,6 +223,10 @@ assert_json "$WORK_DIR/tool-image.json" "v['status'] == 'planned' and v['operati
 printf '%s\n' '{"operation":"image_compress","input":"'"$SRC"'","output_format":"jpg","image_quality":70,"dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-image-compress.json"
 assert_json "$WORK_DIR/tool-image-compress.json" "v['status'] == 'planned' and v['operation'] == 'image' and v['quality'] == 70"
+
+printf '%s\n' '{"operation":"video_to_gif","input":"'"$SRC"'","duration":"1","fps":8,"width":96,"dry_run":true}' \
+  | "$BIN" tool > "$WORK_DIR/tool-gif.json"
+assert_json "$WORK_DIR/tool-gif.json" "v['status'] == 'planned' and v['operation'] == 'gif' and v['fps'] == 8"
 
 printf '%s\n' '{"operation":"merge","inputs":["'"$SRC"'","'"$WORK_DIR/source.mkv"'"],"mode":"concat","dry_run":true}' \
   | "$BIN" tool > "$WORK_DIR/tool-merge.json"
@@ -263,7 +285,7 @@ if not complete or complete[-1].get("value", 0) < 0.9:
 PY
 
 "$BIN" capabilities --json > "$WORK_DIR/capabilities.json"
-assert_json "$WORK_DIR/capabilities.json" "isinstance(v['hardware_acceleration'], dict) and 'encoders' in v"
+assert_json "$WORK_DIR/capabilities.json" "isinstance(v['hardware_acceleration'], dict) and 'encoders' in v and 'disc' in v and 'filters' in v"
 
 touch "$WORK_DIR/existing.mp4"
 "$BIN" convert "$SRC" --to mp4 --output "$WORK_DIR/existing.mp4" --dry-run --json > "$WORK_DIR/safety.json"

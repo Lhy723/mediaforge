@@ -72,16 +72,19 @@ an Agent needs to make:
 
 - **Container/video:** `convert`, `compress`, `resize`, `clip`, and `batch`
   choose container-compatible codecs and preserve or explain stream changes.
-- **Image:** `image` uses FFmpeg's image encoders for format conversion,
-  scaling, rotation, watermark overlays, and quality/compression controls.
+- **Image/GIF:** `image` uses FFmpeg's image encoders for format conversion,
+  scaling, rotation, watermark overlays, and quality/compression controls;
+  `gif` builds a bounded FPS/scale/palette pipeline for animated output.
 - **Edit/join:** `edit` builds a bounded filter chain for crop, rotate, speed,
-  volume, named filters, subtitles, and ranges; `merge` handles concat, mux,
-  and mix with explicit stream expectations.
+  volume, named filters, subtitles, ASS/SSA `force_style`, and ranges; it
+  reports `FILTER_UNAVAILABLE` when libass is absent. `merge` handles concat,
+  mux, and mix with explicit stream expectations.
 - **Audio:** `audio` and `extract-audio` share format routing while exposing
   bitrate, sample-rate, channels, volume, and time-range controls.
 - **Recovery/device/disc:** `repair` applies timestamp/corruption-tolerant
   remuxing or an explicit re-encode; `presets` feeds device-aware conversion;
-  `disc` is a best-effort DVD/CD/ISO bridge with host capability warnings.
+  `disc` is a best-effort DVD/CD/ISO bridge with host capability warnings and
+  can delegate ISO filesystem authoring to an installed external utility.
 
 The supported format lists are declarations of routing intent, not a promise
 that every FFmpeg build contains every encoder. Plans probe the active build,
