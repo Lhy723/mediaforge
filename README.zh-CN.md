@@ -25,6 +25,7 @@
     ·
     <a href="https://github.com/Lhy723/mediaforge/issues">问题反馈</a>
   </p>
+  <img src="./docs/assets/mediaforge-hero.png" alt="MediaForge 媒体处理流水线" width="92%" />
 </div>
 
 MediaForge 是一个运行在本地的 [FFmpeg](https://ffmpeg.org/) / FFprobe 控制层。
