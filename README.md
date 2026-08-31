@@ -1,11 +1,30 @@
-# MediaForge
+<a id="readme-top"></a>
 
-> Deterministic media processing for AI agents.
+<div align="right">
+  <a href="README.md"><strong>English</strong></a> |
+  <a href="README.zh-CN.md">简体中文</a>
+</div>
 
-[![CI](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-
-[简体中文](README.zh-CN.md) · [Documentation site](https://lhy723.github.io/mediaforge/)
+<div align="center">
+  <h1>MediaForge</h1>
+  <p>
+    <strong>Deterministic media processing for AI agents</strong><br />
+    <sub>Inspect → plan → execute → verify, powered by FFmpeg.</sub>
+  </p>
+  <p>
+    <img src="https://img.shields.io/github/actions/workflow/status/Lhy723/mediaforge/ci.yml?style=flat-square&label=CI" alt="CI" />
+    <img src="https://img.shields.io/badge/License-MIT-89B4FA?style=flat-square" alt="License: MIT" />
+    <img src="https://img.shields.io/badge/CLI-media-A6E3A1?style=flat-square&logo=gnu-bash&logoColor=black" alt="CLI: media" />
+    <img src="https://img.shields.io/badge/OS-macOS%20%7C%20Linux%20%7C%20Windows-1793D1?style=flat-square" alt="Platforms" />
+    <img src="https://img.shields.io/badge/Agent-Tool%20%2B%20Skill-F5C2E7?style=flat-square" alt="Agent Tool and Skill" />
+  </p>
+  <p><code>inspect</code> · <code>plan</code> · <code>execute</code> · <code>verify</code></p>
+  <p>
+    <a href="https://lhy723.github.io/mediaforge/">Documentation site</a>
+    ·
+    <a href="https://github.com/Lhy723/mediaforge/issues">Issues</a>
+  </p>
+</div>
 
 MediaForge is a small, local control plane around [FFmpeg](https://ffmpeg.org/) and FFprobe.
 It turns media intent into an inspectable plan, executes it with safe defaults, and verifies the result.
