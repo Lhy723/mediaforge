@@ -12,11 +12,12 @@
     <sub>检查 → 规划 → 执行 → 验证，由 FFmpeg 驱动。</sub>
   </p>
   <p>
-    <img src="https://img.shields.io/github/actions/workflow/status/Lhy723/mediaforge/ci.yml?style=flat-square&label=CI" alt="CI" />
-    <img src="https://img.shields.io/badge/License-MIT-89B4FA?style=flat-square" alt="许可证：MIT" />
-    <img src="https://img.shields.io/badge/CLI-media-A6E3A1?style=flat-square&logo=gnu-bash&logoColor=black" alt="CLI：media" />
-    <img src="https://img.shields.io/badge/OS-macOS%20%7C%20Linux%20%7C%20Windows-1793D1?style=flat-square" alt="支持平台" />
-    <img src="https://img.shields.io/badge/Agent-Tool%20%2B%20Skill-F5C2E7?style=flat-square" alt="Agent Tool 与 Skill" />
+    <img src="https://img.shields.io/github/actions/workflow/status/Lhy723/mediaforge/ci.yml?style=flat&label=CI" alt="CI" />
+    <img src="https://img.shields.io/badge/License-MIT-89B4FA?style=flat&logo=opensourceinitiative&logoColor=white" alt="许可证：MIT" />
+    <img src="https://img.shields.io/github/stars/Lhy723/mediaforge?style=flat&color=F5C2E7&label=stars" alt="Stars" />
+    <img src="https://img.shields.io/badge/CLI-media-A6E3A1?style=flat&logo=gnu-bash&logoColor=black" alt="CLI：media" />
+    <img src="https://img.shields.io/badge/OS-macOS%20%7C%20Linux%20%7C%20Windows-1793D1?style=flat" alt="支持平台" />
+    <img src="https://img.shields.io/badge/Agent-Tool%20%2B%20Skill-F5C2E7?style=flat" alt="Agent Tool 与 Skill" />
   </p>
   <p><code>inspect</code> · <code>plan</code> · <code>execute</code> · <code>verify</code></p>
   <p>
