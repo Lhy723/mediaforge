@@ -3,15 +3,13 @@
 [![CI](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[中文](#中文) · [English](#english) · [Documentation site](https://lhy723.github.io/mediaforge/)
-
-## 中文
+[English version](README.en.md) · [文档网站](https://lhy723.github.io/mediaforge/)
 
 MediaForge 是一个面向 AI Agent 的本地媒体处理工具。它为
 [FFmpeg](https://ffmpeg.org/) 和 FFprobe 提供小而确定性的控制层：检查媒体、规划操作、安全执行并验证结果。
 它同时提供命令行接口（CLI）和基于 stdin/stdout 的 JSON Tool 接口，不是前端项目或 GUI 应用。
 
-### 核心特性
+## 核心特性
 
 - 使用语义化操作替代常见任务中的手写 FFmpeg filter graph。
 - 稳定的 JSON 响应和机器可读错误码。
@@ -24,11 +22,11 @@ MediaForge 是一个面向 AI Agent 的本地媒体处理工具。它为
 FFmpeg 负责真正的媒体编解码，MediaForge 负责把它包装成 Agent 更容易理解和调用的可靠执行层。
 Agent 不必手写复杂 FFmpeg 参数，也能获得可预测的计划、结构化错误和执行后验证。
 
-### 安装
+## 安装
 
 MediaForge 运行时依赖 FFmpeg 和 FFprobe。普通用户无需安装 Rust，先安装 FFmpeg，再执行对应平台的一键安装命令。
 
-#### macOS / Linux（预编译版）
+### macOS / Linux（预编译版）
 
 ```bash
 # macOS
@@ -41,7 +39,7 @@ sudo apt install ffmpeg
 curl -fsSL https://raw.githubusercontent.com/Lhy723/mediaforge/main/scripts/install.sh | sh
 ```
 
-#### Windows PowerShell（预编译版）
+### Windows PowerShell（预编译版）
 
 ```powershell
 choco install ffmpeg
@@ -52,7 +50,7 @@ irm https://raw.githubusercontent.com/Lhy723/mediaforge/main/scripts/install.ps1
 Unix 安装到 `~/.local/bin`，Windows 安装到 `%LOCALAPPDATA%\\MediaForge\\bin`，并提示 PATH 配置方式。
 可以通过 `MEDIAFORGE_VERSION=v0.1.0` 固定安装版本。
 
-#### 从源码安装
+### 从源码安装
 
 开发者或需要使用尚未发布代码时，可以使用 Rust/Cargo：
 
@@ -64,13 +62,13 @@ cargo build --release --bin media
 ./target/release/media capabilities --json
 ```
 
-### 支持平台
+## 支持平台
 
 当前测试和发布平台为 macOS、Linux 和 Windows x64。MediaForge 不捆绑 FFmpeg，
 请确保 `ffmpeg` 和 `ffprobe` 已经在 `PATH` 中。Windows 发布包中的程序名为 `media.exe`，
 命令语义和 JSON Tool API 与 Unix 平台一致。
 
-### Agent 工作流
+## Agent 工作流
 
 推荐流程是先检查媒体，再预览计划，执行操作，最后验证结果：
 
@@ -84,7 +82,7 @@ media verify input.mkv output.mp4 --json
 所有转换命令都支持 `--dry-run`。`--json` 只向 stdout 输出 JSON；FFmpeg 诊断信息写入 stderr。
 长任务使用 `--progress` 时，普通 CLI 输出百分比、耗时、预计剩余时间和速度；JSON/Tool 模式在 stderr 输出进度 NDJSON，最终 stdout 仍只有一个 JSON 响应。
 
-### 支持的操作
+## 支持的操作
 
 | 命令 | 功能 |
 | --- | --- |
@@ -129,7 +127,7 @@ media convert video.mp4 --device psp --json
 media batch './videos/*.mov' --convert mp4 --json
 ```
 
-### 格式、编码和硬件
+## 格式、编码和硬件
 
 支持的容器包括 `mp4`、`mkv`、`mov`、`webm`、`avi`、`wmv/asf`、`flv`、`ogv`、`3gp`、
 `mpg/mpeg`、`vob` 和 `swf`。图片支持 PNG、JPEG、WebP、GIF、BMP、TIFF、ICO、TGA 和 AVIF；
@@ -146,7 +144,7 @@ OGV 使用 Theora/Opus，WMV 使用 WMV2/WMA，MPEG/VOB 使用 MPEG-2/MP2。
 目标大小压缩在未选择硬件编码时通常使用两遍软件编码，并在验证中检查文件是否超过目标大小。
 GIF 的 FPS 范围为 1–60，时长最多 600 秒，宽度最多 16384；编辑倍速范围为 0.25–4，音量范围为 0–10。
 
-### JSON Tool API 和 Agent Skill
+## JSON Tool API 和 Agent Skill
 
 Agent 可以通过 `media tool` 使用一个请求/一个响应的 stdin/stdout 协议：
 
@@ -166,7 +164,7 @@ Tool API 支持语义操作、稳定别名、`dry_run`、`overwrite`、`verify_a
 
 当前版本提供 stdio JSON Tool 和 Skill，但没有原生 MCP Server。MCP 客户端可以把 `media tool` 作为子进程包装使用；如需直接配置 MCP，需要额外的 MCP 适配层。
 
-### 配置
+## 配置
 
 可通过 `MEDIAFORGE_CONFIG` 指定 TOML 配置，也可以使用 `$XDG_CONFIG_HOME/mediaforge/config.toml`
 或 `~/.config/mediaforge/config.toml`。配置同时作用于 CLI 和 Tool API：
@@ -188,7 +186,7 @@ preferred_codec = "aac"
 配置可以设置默认质量、硬件模式、验证、进度和首选编码器，但不能隐式开启覆盖写入。
 可信的高吞吐任务可以设置 `verify_after_execute = false`，响应会明确标记验证被跳过。
 
-### 安全和错误处理
+## 安全和错误处理
 
 - 源文件不会被修改。
 - 输入和输出路径相同会被拒绝。
@@ -199,7 +197,7 @@ preferred_codec = "aac"
   `ENCODER_UNAVAILABLE`、`HARDWARE_UNAVAILABLE`、`FFMPEG_NOT_FOUND`、`FFMPEG_FAILED` 和 `VERIFY_FAILED`。
 - DVD/CD 设备、字幕烧录和 ISO 创建依赖操作系统权限、FFmpeg 构建以及可选工具；相关限制会以警告或结构化错误返回。
 
-### 项目入口、状态和许可证
+## 项目入口、状态和许可证
 
 - [`schemas/tool-api.json`](schemas/tool-api.json)：机器可读的 Tool API 合约。
 - [`skills/mediaforge/SKILL.md`](skills/mediaforge/SKILL.md)：Agent 使用说明。
@@ -212,220 +210,3 @@ MediaForge 当前是一个持续迭代中的 Rust 实现，聚焦本地、确定
 远程存储、模型驱动的剪辑决策和长期运行的任务服务不属于当前 CLI 版本范围。
 
 欢迎提交 Bug 和聚焦明确的 Pull Request。项目采用 [MIT License](LICENSE)。
-
-## English
-
-MediaForge is a local media toolkit designed for AI agents. It provides a small,
-deterministic control plane around [FFmpeg](https://ffmpeg.org/) and FFprobe:
-inspect media, plan an operation, execute it safely, and verify the result.
-It offers both a command-line interface (CLI) and a stdin/stdout JSON Tool interface;
-it is not a frontend project or GUI application.
-
-### Key features
-
-- Semantic operations instead of hand-written FFmpeg filter graphs for common jobs.
-- Stable JSON responses with machine-readable error codes.
-- A standard `inspect → plan → execute → verify` workflow.
-- Safe output naming, collision checks, and explicit overwrite control.
-- Progress output for long jobs without polluting machine-readable stdout.
-- An explicit Raw FFmpeg escape hatch for advanced cases.
-- A versioned Tool API schema and an installable Agent Skill.
-
-FFmpeg remains the media engine; MediaForge provides the reliable agent-facing contract.
-An agent can receive a predictable plan, structured errors, and post-operation verification
-without constructing complex FFmpeg arguments by hand.
-
-### Installation
-
-MediaForge requires FFmpeg and FFprobe at runtime. Regular users do not need Rust:
-install FFmpeg once, then run the installer for the target platform.
-
-#### macOS / Linux (prebuilt binary)
-
-```bash
-# macOS
-brew install ffmpeg
-
-# Debian/Ubuntu
-sudo apt install ffmpeg
-
-# Install MediaForge
-curl -fsSL https://raw.githubusercontent.com/Lhy723/mediaforge/main/scripts/install.sh | sh
-```
-
-#### Windows PowerShell (prebuilt binary)
-
-```powershell
-choco install ffmpeg
-irm https://raw.githubusercontent.com/Lhy723/mediaforge/main/scripts/install.ps1 | iex
-```
-
-The installer selects the latest macOS Apple Silicon/Intel, Linux x64, or Windows x64 asset.
-It installs to `~/.local/bin` on Unix and `%LOCALAPPDATA%\\MediaForge\\bin` on Windows,
-then prints the required PATH hint. Pin a release with `MEDIAFORGE_VERSION=v0.1.0`.
-
-#### From source
-
-Use Rust/Cargo for development or unreleased source:
-
-```bash
-cargo install --path . --bin media
-
-# Local release build
-cargo build --release --bin media
-./target/release/media capabilities --json
-```
-
-### Supported platforms
-
-MediaForge is tested and packaged for macOS, Linux, and Windows x64. FFmpeg and FFprobe are
-not bundled, so both programs must be available on `PATH`. The Windows release binary is
-`media.exe`; semantic commands and the JSON Tool contract are the same on Unix and Windows.
-
-### Agent workflow
-
-Inspect the source, preview the decision, execute the operation, and verify the result:
-
-```bash
-media inspect input.mkv --json
-media plan input.mkv --to mp4 --json
-media convert input.mkv --to mp4 --json
-media verify input.mkv output.mp4 --json
-```
-
-Every transformation command accepts `--dry-run`. With `--json`, only JSON is written to stdout;
-FFmpeg diagnostics go to stderr. With `--progress`, human CLI mode reports percentage, elapsed time,
-estimated remaining time, and speed. JSON/Tool mode emits progress NDJSON on stderr while keeping one final JSON response on stdout.
-
-### Supported operations
-
-| Command | Function |
-| --- | --- |
-| `inspect` | Returns structured container, file, duration, bitrate, tag, video, audio, and subtitle information. |
-| `plan` | Produces a no-write plan and reports copy/remux/transcode strategy, encoders, hardware, quality loss, subtitle/metadata handling, and warnings. |
-| `convert` | Converts containers and codecs, automatically choosing stream copy, remux, or transcode; supports device presets. |
-| `compress` | Compresses video with `lossless`, `very-high`, `high`, `balanced`, `small`, or `tiny`, plus target-size mode. |
-| `resize` | Resizes by width or resolutions such as `1080p`, preserving aspect ratio and normalizing to even dimensions. |
-| `clip` | Clips with a start plus duration or end time; uses lossless copy when compatible. |
-| `extract-audio` | Extracts audio from video, copying a compatible source codec before transcoding. |
-| `thumbnail` | Extracts a JPEG frame at a second, timecode, or percentage position. |
-| `image` | Converts, resizes, rotates, watermarks, and controls image quality. |
-| `gif` | Creates a palette-optimized animated GIF from video with start, duration, FPS, and width controls. |
-| `edit` | Supports crop, rotate, speed, volume, grayscale/blur/sharpen/vintage filters, subtitle burn-in, and time ranges. |
-| `merge` | Supports `concat`, video-plus-audio `mux`, and audio `mix`. |
-| `audio` | Converts and processes audio bitrate, sample rate, channels, volume, and time ranges. |
-| `repair` | Performs timestamp/corruption-tolerant repair and optional H.264/AAC re-encoding. |
-| `disc` | Extracts DVD/CD/ISO sources and creates ISO images from directories. |
-| `batch` | Converts files, directories, or globs recursively, with output-directory and partial-success reporting. |
-| `verify` | Checks parseability, size, duration, streams, resolution, codecs, and an FFmpeg decode sample. |
-| `capabilities` | Reports FFmpeg version, hardware acceleration, encoders, formats, filters, external tools, and presets. |
-| `presets` | Lists deterministic iPhone, iPad, Android, PSP, and car-player profiles. |
-| `tool` | Reads one JSON request from stdin or `--request` and returns one JSON response. |
-| `ffmpeg` | Passes native FFmpeg arguments through for advanced cases outside the semantic API. |
-
-Common examples:
-
-```bash
-media compress video.mp4 --quality balanced --json
-media convert video.mkv --to mp4 --video-codec h265 --quality high --json
-media resize video.mp4 --resolution 1080p --dry-run --json
-media clip video.mp4 --start 00:10:00 --duration 30 --json
-media extract-audio video.mp4 --format flac --json
-media thumbnail video.mp4 --at 50% --json
-media image poster.png --to webp --width 1280 --image-quality 85 --json
-media gif video.mp4 --start 00:00:10 --duration 3 --fps 12 --width 480 --json
-media edit video.mp4 --crop 1280:720:0:0 --rotate 90 --speed 1.25 --json
-media merge first.mp4 second.mp4 --mode concat --json
-media audio video.mp4 --format mp3 --bitrate 128k --sample-rate 44100 --json
-media repair damaged.mp4 --reencode --json
-media convert video.mp4 --device psp --json
-media batch './videos/*.mov' --convert mp4 --json
-```
-
-### Formats, codecs, and hardware
-
-Supported containers include `mp4`, `mkv`, `mov`, `webm`, `avi`, `wmv/asf`, `flv`, `ogv`, `3gp`,
-`mpg/mpeg`, `vob`, and `swf`. Images include PNG, JPEG, WebP, GIF, BMP, TIFF, ICO, TGA, and AVIF.
-Audio includes MP3, AAC/M4A, FLAC, WAV, Opus, OGG/Vorbis, WMA, AIFF, ALAC, AMR, AC-3, and MP2.
-
-Video codecs include H.264, H.265/HEVC, VP9, AV1, MPEG-4, MPEG-2, FLV1, WMV2, and Theora,
-plus `auto` and `copy`. Container-aware defaults are H.264/AAC for MP4/MOV, VP9/Opus for WebM,
-Theora/Opus for OGV, WMV2/WMA for WMV, and MPEG-2/MP2 for MPEG/VOB.
-
-Hardware modes are `auto`, `cpu`, and `gpu`. The capability probe detects VideoToolbox, NVENC,
-QSV, VAAPI, and AMF. `auto` intentionally uses deterministic CPU encoding; `gpu` probes the
-hardware encoders available in the installed FFmpeg build. Run `media capabilities --json` to inspect the actual environment.
-
-Target-size compression normally uses two-pass software encoding when hardware encoding is not selected,
-and verification checks that the rendered file does not exceed the requested target. GIF FPS is limited to
-1–60, duration to 600 seconds, and width to 16384 pixels. Edit speed is limited to 0.25–4 and volume to 0–10.
-
-### JSON Tool API and Agent Skill
-
-Agents can use `media tool` as a one-request/one-response stdin/stdout protocol:
-
-```bash
-printf '%s\n' '{"operation":"plan","input":"input.mkv","output_format":"mp4"}' \
-  | media tool
-```
-
-The Tool API supports semantic operations, stable aliases, `dry_run`, `overwrite`,
-`verify_after_execute`, `progress`, device presets, image/video/audio parameters, and
-`operation: "ffmpeg"` for native arguments. The complete contract is [`schemas/tool-api.json`](schemas/tool-api.json).
-
-The repository includes an installable Agent Skill:
-
-- [`skills/mediaforge/SKILL.md`](skills/mediaforge/SKILL.md): workflow, safety rules, examples, and error handling.
-- [`skills/mediaforge/agents/openai.yaml`](skills/mediaforge/agents/openai.yaml): discovery metadata and default prompt.
-
-This release provides the stdio JSON Tool and Skill, but not a native MCP Server. An MCP client
-can wrap `media tool` as a subprocess; direct MCP configuration requires an additional adapter.
-
-### Configuration
-
-Load an optional TOML file through `MEDIAFORGE_CONFIG`, `$XDG_CONFIG_HOME/mediaforge/config.toml`,
-or `~/.config/mediaforge/config.toml`. The same defaults apply to the CLI and Tool API:
-
-```toml
-default_quality = "balanced"
-hardware = "auto"
-overwrite = false
-verify_after_execute = true
-progress = false
-
-[video]
-preferred_codec = "auto"
-
-[audio]
-preferred_codec = "aac"
-```
-
-Configuration can set default quality, hardware, verification, progress, and preferred codecs,
-but cannot implicitly enable overwriting. Trusted high-throughput jobs may set
-`verify_after_execute = false`; the response marks verification as skipped.
-
-### Safety and errors
-
-- Source files are never modified.
-- Identical input and output paths are rejected.
-- Existing outputs receive `_1`, `_2`, … suffixes unless `--overwrite` is explicit.
-- Successful transforms run an operation-appropriate verification.
-- JSON errors contain `status`, `code`, `message`, `details`, and `suggestions`.
-- Common error codes include `FILE_NOT_FOUND`, `INVALID_MEDIA`, `UNSUPPORTED_FORMAT`, `UNSUPPORTED_CODEC`,
-  `ENCODER_UNAVAILABLE`, `HARDWARE_UNAVAILABLE`, `FFMPEG_NOT_FOUND`, `FFMPEG_FAILED`, and `VERIFY_FAILED`.
-- DVD/CD devices, subtitle burn-in, and ISO authoring depend on OS permissions, the FFmpeg build, and optional tools; limitations are surfaced as warnings or structured errors.
-
-### Project map, status, and license
-
-- [`schemas/tool-api.json`](schemas/tool-api.json): machine-readable Tool API contract.
-- [`skills/mediaforge/SKILL.md`](skills/mediaforge/SKILL.md): Agent usage instructions.
-- [`docs/architecture.md`](docs/architecture.md): control-plane design and invariants.
-- [`docs/development.md`](docs/development.md): development, testing, and release process.
-- [`scripts/install.sh`](scripts/install.sh) / [`scripts/install.ps1`](scripts/install.ps1): prebuilt installers.
-- [MediaForge GitHub Pages](https://lhy723.github.io/mediaforge/): static introduction and Agent API guide.
-
-MediaForge is an actively evolving Rust implementation focused on deterministic local processing
-through FFmpeg/FFprobe. Remote storage, model-powered editing decisions, and long-running job services
-are outside the current CLI scope.
-
-Bug reports and focused pull requests are welcome. MediaForge is released under the [MIT License](LICENSE).
