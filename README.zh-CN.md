@@ -1,11 +1,30 @@
-# MediaForge
+<a id="readme-top"></a>
 
-> 面向 AI Agent 的确定性媒体处理工具。
+<div align="right">
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md"><strong>简体中文</strong></a>
+</div>
 
-[![CI](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Lhy723/mediaforge/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-
-[English](README.md) · [文档网站](https://lhy723.github.io/mediaforge/)
+<div align="center">
+  <h1>MediaForge</h1>
+  <p>
+    <strong>面向 AI Agent 的确定性媒体处理工具</strong><br />
+    <sub>检查 → 规划 → 执行 → 验证，由 FFmpeg 驱动。</sub>
+  </p>
+  <p>
+    <img src="https://img.shields.io/github/actions/workflow/status/Lhy723/mediaforge/ci.yml?style=flat-square&label=CI" alt="CI" />
+    <img src="https://img.shields.io/badge/License-MIT-89B4FA?style=flat-square" alt="许可证：MIT" />
+    <img src="https://img.shields.io/badge/CLI-media-A6E3A1?style=flat-square&logo=gnu-bash&logoColor=black" alt="CLI：media" />
+    <img src="https://img.shields.io/badge/OS-macOS%20%7C%20Linux%20%7C%20Windows-1793D1?style=flat-square" alt="支持平台" />
+    <img src="https://img.shields.io/badge/Agent-Tool%20%2B%20Skill-F5C2E7?style=flat-square" alt="Agent Tool 与 Skill" />
+  </p>
+  <p><code>inspect</code> · <code>plan</code> · <code>execute</code> · <code>verify</code></p>
+  <p>
+    <a href="https://lhy723.github.io/mediaforge/">文档网站</a>
+    ·
+    <a href="https://github.com/Lhy723/mediaforge/issues">问题反馈</a>
+  </p>
+</div>
 
 MediaForge 是一个运行在本地的 [FFmpeg](https://ffmpeg.org/) / FFprobe 控制层。
 它把媒体意图转换成可检查的计划，使用安全默认值执行，并验证最终结果。
