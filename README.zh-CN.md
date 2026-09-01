@@ -25,7 +25,7 @@
     ·
     <a href="https://github.com/Lhy723/mediaforge/issues">问题反馈</a>
   </p>
-  <img src="./docs/assets/mediaforge-hero-editorial.png" alt="MediaForge 文艺风媒体拼贴" width="92%" />
+  <img src="./docs/assets/mediaforge-hero-editorial-text.png" alt="带有 MediaForge 品牌文字的文艺风媒体拼贴" width="92%" />
 </div>
 
 MediaForge 是一个运行在本地的 [FFmpeg](https://ffmpeg.org/) / FFprobe 控制层。
