@@ -25,7 +25,7 @@
     ·
     <a href="https://github.com/Lhy723/mediaforge/issues">Issues</a>
   </p>
-  <img src="./docs/assets/mediaforge-hero-minimal.png" alt="MediaForge media processing mark" width="92%" />
+  <img src="./docs/assets/mediaforge-hero-editorial.png" alt="MediaForge editorial media collage" width="92%" />
 </div>
 
 MediaForge is a small, local control plane around [FFmpeg](https://ffmpeg.org/) and FFprobe.
