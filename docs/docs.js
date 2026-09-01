@@ -3,6 +3,10 @@
   const languageToggle = document.getElementById('language-toggle');
   const menu = document.querySelector('.menu-toggle');
   const nav = document.querySelector('.site-nav');
+  const navLinks = nav ? [...nav.querySelectorAll('a[href^="#"]')] : [];
+  const navSections = navLinks
+    .map((link) => document.getElementById(link.getAttribute('href').slice(1)))
+    .filter(Boolean);
   const copyButton = document.getElementById('copy-button');
   const copyLabel = document.getElementById('copy-label');
   const inputs = [document.getElementById('operation-search'), document.getElementById('operation-filter')].filter(Boolean);
@@ -13,6 +17,27 @@
   const copyText = {
     zh: { idle: '复制', done: '已复制', failed: '请手动复制' },
     en: { idle: 'Copy', done: 'Copied', failed: 'Copy manually' },
+  };
+
+  let activeNavLink = navLinks.find((link) => link.classList.contains('active')) || navLinks[0];
+
+  const moveNavIndicator = () => {
+    if (!nav || !activeNavLink) return;
+    nav.style.setProperty('--nav-indicator-x', `${activeNavLink.offsetLeft}px`);
+    nav.style.setProperty('--nav-indicator-width', `${activeNavLink.offsetWidth}px`);
+  };
+
+  const setActiveNav = (sectionId) => {
+    const nextLink = navLinks.find((link) => link.getAttribute('href') === `#${sectionId}`);
+    if (!nextLink) return;
+    activeNavLink = nextLink;
+    navLinks.forEach((link) => {
+      const active = link === nextLink;
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+    moveNavIndicator();
   };
 
   const setCopyLabel = (state = 'idle') => {
@@ -55,6 +80,31 @@
     savedLanguage = window.localStorage.getItem(langStorageKey) || 'zh';
   } catch { /* Use Chinese as the stable default when storage is unavailable. */ }
   setLanguage(savedLanguage);
+  setActiveNav(window.location.hash.slice(1) || 'top');
+  if (window.requestAnimationFrame) window.requestAnimationFrame(moveNavIndicator);
+  else moveNavIndicator();
+
+  navLinks.forEach((link) => link.addEventListener('click', () => {
+    setActiveNav(link.getAttribute('href').slice(1));
+  }));
+
+  window.addEventListener('hashchange', () => {
+    setActiveNav(window.location.hash.slice(1) || 'top');
+  });
+
+  if ('IntersectionObserver' in window && navSections.length > 0) {
+    const visibleSections = new Map();
+    const sectionObserver = new window.IntersectionObserver((entries) => {
+      entries.forEach((entry) => visibleSections.set(entry.target.id, entry));
+      const current = [...visibleSections.values()]
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (current) setActiveNav(current.target.id);
+    }, { rootMargin: '-28% 0px -58% 0px', threshold: 0 });
+    navSections.forEach((section) => sectionObserver.observe(section));
+  }
+
+  window.addEventListener('resize', moveNavIndicator);
 
   languageToggle?.addEventListener('click', () => {
     setLanguage(root.dataset.lang === 'en' ? 'zh' : 'en');
@@ -71,13 +121,13 @@
 
   const tabs = [...document.querySelectorAll('.code-tab')];
   const panels = [...document.querySelectorAll('.code-panel')];
-    tabs.forEach((tab) => tab.addEventListener('click', () => {
-      const selected = tab.dataset.tab;
-      tabs.forEach((item) => {
+  tabs.forEach((tab) => tab.addEventListener('click', () => {
+    const selected = tab.dataset.tab;
+    tabs.forEach((item) => {
       const active = item === tab;
       item.classList.toggle('active', active);
-        item.setAttribute('aria-selected', String(active));
-      });
+      item.setAttribute('aria-selected', String(active));
+    });
     panels.forEach((panel) => {
       const active = panel.dataset.panel === selected;
       panel.classList.toggle('active', active);
