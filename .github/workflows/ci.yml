@@ -33,8 +33,72 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install ffmpeg --yes --no-progress
-          "$env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $ErrorActionPreference = 'Stop'
+          $chocoBin = Join-Path $env:ChocolateyInstall 'bin'
+          $ffmpegBin = $null
+
+          # The Chocolatey community feed can occasionally return transient 5xx
+          # responses. Retry it before falling back to the official Windows build.
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            Write-Host "Installing FFmpeg with Chocolatey (attempt $attempt/3)..."
+            choco install ffmpeg --yes --no-progress --execution-timeout=600
+            $exitCode = $LASTEXITCODE
+
+            if ($exitCode -eq 0 -and (Test-Path (Join-Path $chocoBin 'ffmpeg.exe'))) {
+              $ffmpegBin = $chocoBin
+              break
+            }
+
+            if ($attempt -lt 3) {
+              Start-Sleep -Seconds (15 * $attempt)
+            }
+          }
+
+          if (-not $ffmpegBin) {
+            $archive = Join-Path $env:RUNNER_TEMP 'ffmpeg-9.0.1-essentials_build.zip'
+            $extractRoot = Join-Path $env:RUNNER_TEMP 'ffmpeg-essentials'
+            $downloadUrl = 'https://github.com/GyanD/codexffmpeg/releases/download/9.0.1/ffmpeg-9.0.1-essentials_build.zip'
+            $expectedSha256 = 'fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9'
+
+            Write-Host 'Chocolatey was unavailable; downloading the pinned official FFmpeg essentials build.'
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              try {
+                Invoke-WebRequest -Uri $downloadUrl -OutFile $archive -UseBasicParsing
+                break
+              } catch {
+                if ($attempt -eq 3) {
+                  throw
+                }
+                Write-Warning "FFmpeg download failed (attempt $attempt/3): $($_.Exception.Message)"
+                Start-Sleep -Seconds (10 * $attempt)
+              }
+            }
+
+            $actualSha256 = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualSha256 -ne $expectedSha256) {
+              throw "FFmpeg archive checksum mismatch: expected $expectedSha256, got $actualSha256"
+            }
+
+            New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+            Expand-Archive -Path $archive -DestinationPath $extractRoot -Force
+            $ffmpegExe = Get-ChildItem -Path $extractRoot -Filter 'ffmpeg.exe' -Recurse | Select-Object -First 1
+            $ffprobeExe = Get-ChildItem -Path $extractRoot -Filter 'ffprobe.exe' -Recurse | Select-Object -First 1
+            if (-not $ffmpegExe -or -not $ffprobeExe) {
+              throw 'The downloaded FFmpeg archive did not contain ffmpeg.exe and ffprobe.exe'
+            }
+            $ffmpegBin = $ffmpegExe.Directory.FullName
+          }
+
+          $ffmpegBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:Path = "$ffmpegBin;$env:Path"
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            throw 'FFmpeg was installed but is not available on PATH'
+          }
+          if (-not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            throw 'FFprobe was installed but is not available on PATH'
+          }
+          ffmpeg -version
+          ffprobe -version
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
