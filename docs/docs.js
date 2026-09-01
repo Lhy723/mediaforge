@@ -9,7 +9,7 @@
     .filter(Boolean);
   const copyButton = document.getElementById('copy-button');
   const copyLabel = document.getElementById('copy-label');
-  const inputs = [document.getElementById('operation-search'), document.getElementById('operation-filter')].filter(Boolean);
+  const operationFilter = document.getElementById('operation-filter');
   const cards = [...document.querySelectorAll('.operation-card')];
   const empty = document.getElementById('empty-operations');
   const langStorageKey = 'mediaforge-docs-language';
@@ -61,10 +61,10 @@
       ? 'MediaForge | Verifiable media tooling'
       : 'MediaForge | 可验证的媒体处理工具';
 
-    inputs.forEach((input) => {
-      const placeholder = input.dataset[next === 'en' ? 'placeholderEn' : 'placeholderZh'];
-      if (placeholder) input.placeholder = placeholder;
-    });
+    if (operationFilter) {
+      const placeholder = operationFilter.dataset[next === 'en' ? 'placeholderEn' : 'placeholderZh'];
+      if (placeholder) operationFilter.placeholder = placeholder;
+    }
     if (languageToggle) {
       languageToggle.setAttribute('aria-label', next === 'en' ? '切换为中文' : 'Switch to English');
       languageToggle.setAttribute('aria-pressed', String(next === 'en'));
@@ -165,8 +165,5 @@
     if (empty) empty.hidden = visible !== 0;
   };
 
-  inputs.forEach((input) => input.addEventListener('input', (event) => {
-    inputs.forEach((other) => { if (other !== event.target) other.value = event.target.value; });
-    filterOperations(event.target.value);
-  }));
+  operationFilter?.addEventListener('input', (event) => filterOperations(event.target.value));
 })();
