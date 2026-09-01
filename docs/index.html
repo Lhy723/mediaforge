@@ -1,163 +1,227 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-lang="zh">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="MediaForge：面向 AI Agent 的确定性媒体处理工具。">
-    <title>MediaForge · Agent media control plane</title>
+    <meta name="description" content="MediaForge：面向 AI Agent 的可验证媒体处理工具。">
+    <title>MediaForge | 可验证的媒体处理工具</title>
     <link rel="stylesheet" href="docs.css">
     <script src="docs.js" defer></script>
   </head>
   <body>
-    <a class="skip-link" href="#main">跳到正文</a>
+    <a class="skip-link" href="#main">
+      <span class="lang-zh">跳到正文</span>
+      <span class="lang-en">Skip to content</span>
+    </a>
+
     <header class="site-header">
       <div class="shell header-inner">
-        <a class="brand" href="#top" aria-label="MediaForge 首页">
+        <a class="brand" href="#top" aria-label="MediaForge home">
           <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
           <span>MediaForge</span>
         </a>
-        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">菜单</button>
-        <nav id="site-nav" class="site-nav" aria-label="主导航">
-          <a class="active" href="#top">首页</a>
-          <a href="#workflow">工作流</a>
-          <a href="#capabilities">能力矩阵</a>
+
+        <nav id="site-nav" class="site-nav" aria-label="Primary navigation">
+          <a class="active" href="#top" aria-current="page"><span class="lang-zh">首页</span><span class="lang-en">Overview</span></a>
+          <a href="#workflow"><span class="lang-zh">工作流</span><span class="lang-en">Workflow</span></a>
+          <a href="#capabilities"><span class="lang-zh">能力</span><span class="lang-en">Capabilities</span></a>
           <a href="#tool-api">Tool API</a>
-          <a href="https://github.com/Lhy723/mediaforge" target="_blank" rel="noreferrer">GitHub ↗</a>
+          <a href="https://github.com/Lhy723/mediaforge" target="_blank" rel="noreferrer">GitHub <span aria-hidden="true">↗</span></a>
         </nav>
-        <label class="search-box">
-          <span aria-hidden="true">⌕</span>
-          <input id="operation-search" type="search" placeholder="搜索 operation" autocomplete="off">
-        </label>
+
+        <div class="header-tools">
+          <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch to English">
+            <span class="lang-zh">中文</span><span class="lang-en">EN</span>
+            <span class="language-slash" aria-hidden="true">/</span>
+            <span class="lang-zh language-muted">EN</span><span class="lang-en language-muted">中文</span>
+          </button>
+          <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+            <span class="lang-zh">菜单</span><span class="lang-en">Menu</span>
+          </button>
+        </div>
       </div>
     </header>
 
     <main id="main">
       <section id="top" class="hero shell">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="status-dot"></span> AGENT-NATIVE MEDIA CONTROL PLANE</p>
-          <h1>让 Agent<br><em>可靠地处理媒体。</em></h1>
-          <p class="hero-lede">MediaForge 把 FFmpeg 的复杂命令面收敛成可检查、可规划、可验证的工具契约。没有前端黑盒，只有稳定的 JSON、清晰的失败和可复现的输出。</p>
+          <p class="eyebrow"><span class="eyebrow-rule" aria-hidden="true"></span><span class="lang-zh">面向 Agent 的媒体工具</span><span class="lang-en">MEDIA TOOLING FOR AGENTS</span></p>
+          <h1>
+            <span class="lang-zh">把媒体处理<br><em>变成可验证的工作。</em></span>
+            <span class="lang-en">Make media work<br><em>verifiable.</em></span>
+          </h1>
+          <p class="hero-lede">
+            <span class="lang-zh">MediaForge 将 FFmpeg 的复杂命令面收敛成清晰的检查、规划、执行和验证流程。每一次调用都有明确输入、可读计划和可复现结果。</span>
+            <span class="lang-en">MediaForge turns FFmpeg's broad command surface into a clear inspect, plan, execute, and verify loop. Every call has explicit inputs, a readable plan, and a reproducible result.</span>
+          </p>
           <div class="hero-actions">
-            <a class="button button-primary" href="#tool-api">阅读 Tool API <span>→</span></a>
-            <a class="button button-quiet" href="https://github.com/Lhy723/mediaforge" target="_blank" rel="noreferrer">查看源码 <span>↗</span></a>
+            <a class="button button-primary" href="#tool-api"><span class="lang-zh">查看 Tool API</span><span class="lang-en">Read the Tool API</span><span aria-hidden="true">↗</span></a>
+            <a class="button button-quiet" href="https://github.com/Lhy723/mediaforge" target="_blank" rel="noreferrer"><span class="lang-zh">查看源码</span><span class="lang-en">View source</span><span aria-hidden="true">↗</span></a>
           </div>
-          <div class="hero-meta">
-            <span><b>Rust</b> single binary</span>
-            <span><b>FFmpeg</b> adapter</span>
-            <span><b>JSON</b> one request / response</span>
-          </div>
-        </div>
-        <div class="terminal-card" aria-label="MediaForge agent workflow preview">
-          <div class="terminal-bar"><span></span><span></span><span></span><strong>agent-session / mediaforge</strong><small>LOCAL</small></div>
-          <div class="terminal-body">
-            <p class="terminal-line muted"># inspect before touching the source</p>
-            <p class="terminal-line"><b class="prompt">$</b> media inspect input.mkv --json</p>
-            <p class="terminal-output">{ <span>"status"</span>: <span class="orange">"success"</span>,</p>
-            <p class="terminal-output indent"><span>"video"</span>: [{ <span>"codec"</span>: <span class="orange">"h264"</span> }],</p>
-            <p class="terminal-output indent"><span>"audio"</span>: [{ <span>"codec"</span>: <span class="orange">"aac"</span> }] }</p>
-            <p class="terminal-line spacer"><b class="prompt">$</b> media plan input.mkv --to mp4 --json</p>
-            <div class="plan-result"><span class="check">✓</span><span><b>planned</b> · remux</span><small>will_execute: false</small></div>
-            <div class="terminal-pipeline"><span>inspect</span><i>→</i><span>plan</span><i>→</i><span class="current">execute</span><i>→</i><span>verify</span></div>
+          <div class="hero-meta" aria-label="Project properties">
+            <span><b>LOCAL</b><span class="lang-zh">本地执行</span><span class="lang-en">runs on your machine</span></span>
+            <span><b>JSON</b><span class="lang-zh">一进一出</span><span class="lang-en">one request in, one out</span></span>
+            <span><b>MIT</b><span class="lang-zh">开源许可</span><span class="lang-en">open source</span></span>
           </div>
         </div>
+
+        <figure class="hero-visual">
+          <div class="visual-frame">
+            <img src="assets/mediaforge-hero-editorial-text.png" alt="MediaForge editorial media collage" width="1672" height="941">
+          </div>
+          <figcaption>
+            <span class="caption-index">01</span>
+            <span class="lang-zh">胶片、波形和可验证的媒体流程。</span>
+            <span class="lang-en">Film, waveform, and a verifiable media loop.</span>
+          </figcaption>
+        </figure>
       </section>
 
-      <section id="workflow" class="workflow shell section-rule">
-        <div class="section-heading compact-heading">
-          <p class="eyebrow">01 / CONTROL LOOP</p>
-          <h2>每一个转换，都有一条可以审计的路径。</h2>
-        </div>
-        <div class="workflow-grid">
-          <article class="workflow-step"><span class="step-number">01</span><h3>Inspect</h3><p>读取容器、流、编码、字幕、HDR 与元数据，先建立事实。</p><code>media inspect</code></article>
-          <article class="workflow-step"><span class="step-number">02</span><h3>Plan</h3><p>选择 copy 或 transcode，显示质量损失、警告和最终命令。</p><code>media plan</code></article>
-          <article class="workflow-step"><span class="step-number">03</span><h3>Execute</h3><p>安全地处理路径冲突，进度走 stderr，stdout 保持可解析。</p><code>media convert</code></article>
-          <article class="workflow-step"><span class="step-number">04</span><h3>Verify</h3><p>重新探测并解码输出，检查尺寸、流存在性、时长和目标大小。</p><code>media verify</code></article>
-        </div>
+      <section class="signal-strip shell" aria-label="Key capabilities">
+        <span>FFmpeg / FFprobe</span>
+        <span>JSON Tool</span>
+        <span>Dry run</span>
+        <span>Verify output</span>
       </section>
 
-      <section id="capabilities" class="capabilities shell section-rule">
+      <section id="workflow" class="section shell">
         <div class="section-heading">
-          <p class="eyebrow">02 / CAPABILITY MATRIX</p>
-          <h2>覆盖常见媒体工作，不隐藏主机边界。</h2>
-          <p>能力列表由命令和本机 FFmpeg 编码器共同决定。缺失编码器时，Agent 收到结构化错误，而不是一个看似成功的假结果。</p>
+          <h2><span class="lang-zh">先理解，再动手。</span><span class="lang-en">Understand first. Then act.</span></h2>
+          <p><span class="lang-zh">把一次媒体操作拆成四个可以被 Agent 观察、解释和复核的瞬间。</span><span class="lang-en">Every media operation becomes four moments an Agent can observe, explain, and verify.</span></p>
         </div>
-        <div class="capability-table" role="table" aria-label="MediaForge capability matrix">
-          <div class="cap-row cap-head" role="row"><span>域</span><span>可执行能力</span><span>输出</span></div>
-          <div class="cap-row" role="row"><strong><span class="cap-icon video">V</span>Video</strong><span>convert · compress · resize · clip · device presets</span><code>mp4 · mkv · mov · webm · avi · wmv · flv · ogv · 3gp · mpeg</code></div>
-          <div class="cap-row" role="row"><strong><span class="cap-icon audio">A</span>Audio</strong><span>extract · convert · bitrate · sample rate · channels · volume</span><code>mp3 · aac · m4a · flac · wav · opus · ogg · wma · aiff</code></div>
-          <div class="cap-row" role="row"><strong><span class="cap-icon image">I</span>Image</strong><span>convert · scale · rotate · watermark · quality · animated GIF</span><code>png · jpg · webp · gif · bmp · tiff · ico · tga · avif</code></div>
-          <div class="cap-row" role="row"><strong><span class="cap-icon edit">E</span>Edit</strong><span>crop · rotate · speed · volume · filters · subtitles</span><code>concat · mux · mix · repair</code></div>
-          <div class="cap-row" role="row"><strong><span class="cap-icon disk">D</span>Disk</strong><span>DVD · CD · ISO bridge with host capability warnings</span><code>ffmpeg · optional disc tools</code></div>
+        <div class="workflow-list">
+          <article class="workflow-step">
+            <div class="step-top"><span class="step-index">01</span><code>inspect</code></div>
+            <h3><span class="lang-zh">先建立事实</span><span class="lang-en">Start with facts</span></h3>
+            <p><span class="lang-zh">读取容器、流、编码、字幕、HDR 和元数据。</span><span class="lang-en">Read containers, streams, codecs, subtitles, HDR, and metadata.</span></p>
+          </article>
+          <article class="workflow-step">
+            <div class="step-top"><span class="step-index">02</span><code>plan</code></div>
+            <h3><span class="lang-zh">把选择说清楚</span><span class="lang-en">Make choices visible</span></h3>
+            <p><span class="lang-zh">比较 copy、remux 和 transcode，提前展示警告与命令。</span><span class="lang-en">Compare copy, remux, and transcode before showing warnings and arguments.</span></p>
+          </article>
+          <article class="workflow-step">
+            <div class="step-top"><span class="step-index">03</span><code>execute</code></div>
+            <h3><span class="lang-zh">安全地执行</span><span class="lang-en">Execute safely</span></h3>
+            <p><span class="lang-zh">拒绝路径冲突，不隐式覆盖，进度与结果分离。</span><span class="lang-en">Reject collisions, avoid implicit overwrite, and separate progress from results.</span></p>
+          </article>
+          <article class="workflow-step">
+            <div class="step-top"><span class="step-index">04</span><code>verify</code></div>
+            <h3><span class="lang-zh">对结果负责</span><span class="lang-en">Stand behind results</span></h3>
+            <p><span class="lang-zh">重新探测并解码输出，检查尺寸、流、时长和目标条件。</span><span class="lang-en">Probe and decode the output again, checking streams, dimensions, duration, and constraints.</span></p>
+          </article>
         </div>
       </section>
 
-      <section id="tool-api" class="tool-api shell section-rule">
-        <div class="api-copy">
-          <p class="eyebrow">03 / TOOL API</p>
-          <h2>给 Agent 一个小而明确的接口。</h2>
-          <p>通过 stdin 发送一个 JSON 对象，stdout 返回一个 JSON 对象。支持语义操作、别名、dry-run、显式 overwrite 和 Raw FFmpeg escape hatch。</p>
-          <div class="api-facts"><span><b>1 → 1</b> JSON contract</span><span><b>0</b> implicit overwrite</span><span><b>stderr</b> progress channel</span></div>
-          <a class="text-link" href="https://github.com/Lhy723/mediaforge/blob/main/schemas/tool-api.json" target="_blank" rel="noreferrer">打开完整 schema <span>↗</span></a>
+      <section id="capabilities" class="section shell capabilities-section">
+        <div class="section-heading">
+          <h2><span class="lang-zh">覆盖常见媒体工作，保留主机边界。</span><span class="lang-en">Cover the common work. Keep the boundary honest.</span></h2>
+          <p><span class="lang-zh">能力来自命令和本机 FFmpeg。缺失编码器时，Agent 收到结构化错误，而不是一个假成功。</span><span class="lang-en">Capabilities come from the command and the local FFmpeg install. Missing codecs become structured errors, not false success.</span></p>
         </div>
-        <div class="code-card">
-          <div class="code-tabs" role="tablist" aria-label="Tool API examples">
-            <button class="code-tab active" role="tab" aria-selected="true" data-tab="convert">convert</button>
-            <button class="code-tab" role="tab" aria-selected="false" data-tab="image">image</button>
-            <button class="code-tab" role="tab" aria-selected="false" data-tab="merge">merge</button>
-            <button class="copy-button" type="button" data-copy-target="api-code">复制</button>
+        <div class="capability-layout">
+          <aside class="capability-note">
+            <span class="note-number">05</span>
+            <h3><span class="lang-zh">小接口，真实边界。</span><span class="lang-en">A small interface. A real boundary.</span></h3>
+            <p><span class="lang-zh">MediaForge 不替主机假装拥有能力。它会先探测，再把可执行范围交给调用方。</span><span class="lang-en">MediaForge never pretends the host has a capability it does not. It probes first, then reports the executable surface.</span></p>
+            <a class="text-link" href="https://github.com/Lhy723/mediaforge/blob/main/schemas/tool-api.json" target="_blank" rel="noreferrer"><span class="lang-zh">打开 Schema</span><span class="lang-en">Open the schema</span><span aria-hidden="true">↗</span></a>
+          </aside>
+          <div class="capability-table" role="table" aria-label="MediaForge capability matrix">
+            <div class="cap-row cap-head" role="row"><span><span class="lang-zh">领域</span><span class="lang-en">Domain</span></span><span><span class="lang-zh">能力</span><span class="lang-en">Capabilities</span></span><span><span class="lang-zh">示例</span><span class="lang-en">Examples</span></span></div>
+            <div class="cap-row" role="row"><strong><span class="cap-icon video">V</span>Video</strong><span><span class="lang-zh">转换、压缩、缩放、剪辑、设备预设</span><span class="lang-en">convert, compress, resize, clip, device presets</span></span><code>mp4 · mkv · mov · webm</code></div>
+            <div class="cap-row" role="row"><strong><span class="cap-icon audio">A</span>Audio</strong><span><span class="lang-zh">提取、码率、采样率、声道、音量</span><span class="lang-en">extract, bitrate, sample rate, channels, volume</span></span><code>mp3 · aac · flac · wav</code></div>
+            <div class="cap-row" role="row"><strong><span class="cap-icon image">I</span>Image</strong><span><span class="lang-zh">转换、缩放、旋转、水印、GIF</span><span class="lang-en">convert, scale, rotate, watermark, GIF</span></span><code>png · jpg · webp · avif</code></div>
+            <div class="cap-row" role="row"><strong><span class="cap-icon edit">E</span>Edit</strong><span><span class="lang-zh">裁剪、变速、音量、滤镜、字幕</span><span class="lang-en">crop, speed, volume, filters, subtitles</span></span><code>concat · mux · mix</code></div>
+            <div class="cap-row" role="row"><strong><span class="cap-icon disk">D</span>Disk</strong><span><span class="lang-zh">DVD、CD、ISO bridge 与能力告警</span><span class="lang-en">DVD, CD, ISO bridge with capability warnings</span></span><code>ffmpeg · disc tools</code></div>
           </div>
-          <pre class="code-panel active" data-panel="convert"><code id="api-code">printf '%s\n' '{
+        </div>
+      </section>
+
+      <section id="tool-api" class="section shell api-section">
+        <div class="api-layout">
+          <div class="api-copy">
+            <h2><span class="lang-zh">给 Agent 一个小而明确的接口。</span><span class="lang-en">Give the Agent a small, explicit interface.</span></h2>
+            <p><span class="lang-zh">stdin 接收一个 JSON 对象，stdout 返回一个 JSON 对象。语义操作、dry-run、overwrite 和 Raw FFmpeg 都有明确位置。</span><span class="lang-en">Send one JSON object to stdin and receive one JSON object on stdout. Semantic operations, dry-run, overwrite, and Raw FFmpeg each have an explicit place.</span></p>
+            <div class="api-facts">
+              <span><b>1 → 1</b><span class="lang-zh">JSON 契约</span><span class="lang-en">JSON contract</span></span>
+              <span><b>0</b><span class="lang-zh">隐式覆盖</span><span class="lang-en">implicit overwrite</span></span>
+              <span><b>stderr</b><span class="lang-zh">进度通道</span><span class="lang-en">progress channel</span></span>
+            </div>
+            <a class="text-link" href="https://github.com/Lhy723/mediaforge/blob/main/schemas/tool-api.json" target="_blank" rel="noreferrer"><span class="lang-zh">阅读完整 Schema</span><span class="lang-en">Read the full schema</span><span aria-hidden="true">↗</span></a>
+          </div>
+
+          <div class="code-card">
+            <div class="code-tabs" role="tablist" aria-label="Tool API examples">
+              <button id="tab-convert" class="code-tab active" role="tab" aria-selected="true" aria-controls="api-panel-convert" data-tab="convert">convert</button>
+              <button id="tab-image" class="code-tab" role="tab" aria-selected="false" aria-controls="api-panel-image" data-tab="image">image</button>
+              <button id="tab-merge" class="code-tab" role="tab" aria-selected="false" aria-controls="api-panel-merge" data-tab="merge">merge</button>
+              <button id="copy-button" class="copy-button" type="button" data-copy-target="api-code"><span id="copy-label"><span class="lang-zh">复制</span><span class="lang-en">Copy</span></span></button>
+            </div>
+            <pre id="api-panel-convert" class="code-panel active" role="tabpanel" aria-labelledby="tab-convert" data-panel="convert"><code id="api-code">printf '%s\n' '{
   "operation": "convert",
   "input": "input.mkv",
   "output_format": "mp4",
   "dry_run": true
 }' | media tool</code></pre>
-          <pre class="code-panel" data-panel="image"><code>printf '%s\n' '{
+            <pre id="api-panel-image" class="code-panel" role="tabpanel" aria-labelledby="tab-image" aria-hidden="true" data-panel="image"><code id="api-code-image">printf '%s\n' '{
   "operation": "image_convert",
   "input": "poster.png",
   "output_format": "webp",
   "width": 1280,
   "image_quality": 85
 }' | media tool</code></pre>
-          <pre class="code-panel" data-panel="merge"><code>printf '%s\n' '{
+            <pre id="api-panel-merge" class="code-panel" role="tabpanel" aria-labelledby="tab-merge" aria-hidden="true" data-panel="merge"><code id="api-code-merge">printf '%s\n' '{
   "operation": "merge",
   "inputs": ["a.mp4", "b.mp4"],
   "mode": "concat"
 }' | media tool</code></pre>
-          <div class="code-status"><span class="status-dot"></span> stdout: one JSON response · stderr: diagnostics</div>
+            <div class="code-status"><span class="status-mark" aria-hidden="true">+</span><span class="lang-zh">stdout：一个 JSON 响应，stderr：诊断信息</span><span class="lang-en">stdout: one JSON response, stderr: diagnostics</span></div>
+          </div>
         </div>
       </section>
 
-      <section class="operations shell section-rule">
+      <section id="operations" class="section shell operations-section">
         <div class="section-heading operations-heading">
-          <p class="eyebrow">04 / OPERATION INDEX</p>
-          <h2>从一个 agent intent 到可复现命令。</h2>
-          <label class="operation-filter"><span>⌕</span><input id="operation-filter" type="search" placeholder="筛选操作，如 audio、repair…"></label>
+          <h2><span class="lang-zh">从意图到可复现命令。</span><span class="lang-en">From intent to a reproducible command.</span></h2>
+          <p><span class="lang-zh">按领域筛选操作，查看每个入口能做什么。</span><span class="lang-en">Filter by domain and see what each entry can do.</span></p>
+          <label class="operation-filter"><span class="sr-only"><span class="lang-zh">筛选 operation</span><span class="lang-en">Filter operations</span></span><span aria-hidden="true">⌕</span><input id="operation-filter" type="search" autocomplete="off" data-placeholder-zh="筛选 audio、repair…" data-placeholder-en="Filter audio, repair..." placeholder="筛选 audio、repair…"></label>
         </div>
         <div id="operation-grid" class="operation-grid">
-          <article class="operation-card" data-search="inspect metadata probe streams"><div class="operation-top"><span class="operation-tag cyan">READ</span><code>inspect</code></div><h3>先知道文件是什么</h3><p>容器、视频、音频、字幕、HDR、语言、时长与码率。</p><code class="operation-command">media inspect input.mkv --json</code></article>
-          <article class="operation-card" data-search="convert compress resize clip video"><div class="operation-top"><span class="operation-tag orange">VIDEO</span><code>convert</code></div><h3>选择容器与质量</h3><p>兼容时 remux，必要时转码，报告 codec 与质量损失。</p><code class="operation-command">media convert input.mkv --to mp4</code></article>
-          <article class="operation-card" data-search="image png jpg webp watermark scale"><div class="operation-top"><span class="operation-tag lime">IMAGE</span><code>image</code></div><h3>图片也走同一条契约</h3><p>格式、尺寸、旋转、水印与质量参数都可 dry-run。</p><code class="operation-command">media image poster.png --to webp</code></article>
-          <article class="operation-card" data-search="gif animated video palette fps"><div class="operation-top"><span class="operation-tag lime">ANIMATE</span><code>gif</code></div><h3>从视频生成动图</h3><p>限定时长、帧率和宽度，使用 palettegen/paletteuse 控制色带。</p><code class="operation-command">media gif input.mp4 --duration 3</code></article>
-          <article class="operation-card" data-search="edit crop rotate speed volume filter subtitle"><div class="operation-top"><span class="operation-tag violet">EDIT</span><code>edit</code></div><h3>把滤镜变成语义参数</h3><p>裁剪、旋转、变速、音量、命名滤镜和字幕烧录。</p><code class="operation-command">media edit input.mp4 --speed 1.25</code></article>
-          <article class="operation-card" data-search="merge concat mux mix join"><div class="operation-top"><span class="operation-tag cyan">JOIN</span><code>merge</code></div><h3>连接、混流或混音</h3><p>concat、video-plus-audio mux，以及双音轨 mix。</p><code class="operation-command">media merge a.mp4 b.mp4 --mode concat</code></article>
-          <article class="operation-card" data-search="repair broken corrupt timestamps"><div class="operation-top"><span class="operation-tag red">RECOVER</span><code>repair</code></div><h3>对坏文件给出下一步</h3><p>时间戳修复、损坏容忍 remux，或显式选择 re-encode。</p><code class="operation-command">media repair damaged.mp4</code></article>
-          <article class="operation-card" data-search="audio mp3 flac wav opus bitrate"><div class="operation-top"><span class="operation-tag orange">AUDIO</span><code>audio</code></div><h3>音频转换不是黑盒</h3><p>码率、采样率、声道、音量和时间范围全部可见。</p><code class="operation-command">media audio input.mp4 --format flac</code></article>
-          <article class="operation-card" data-search="disc dvd cd iso optical authoring"><div class="operation-top"><span class="operation-tag slate">DISK</span><code>disc</code></div><h3>能力边界被明确写出</h3><p>DVD/CD/ISO 走 bridge，ISO authoring 委托本机工具，权限与 DRM 以 warning 呈现。</p><code class="operation-command">media disc DVD --action create-iso</code></article>
+          <article class="operation-card" data-search="inspect metadata probe streams 检查 元数据 流"><div class="operation-top"><span class="operation-tag cyan">READ</span><code>inspect</code></div><h3><span class="lang-zh">先知道文件是什么</span><span class="lang-en">Know the file first</span></h3><p><span class="lang-zh">容器、视频、音频、字幕、HDR、语言、时长与码率。</span><span class="lang-en">Container, video, audio, subtitles, HDR, language, duration, and bitrate.</span></p><code class="operation-command">media inspect input.mkv --json</code></article>
+          <article class="operation-card" data-search="convert compress resize clip video 转换 压缩 缩放 剪辑"><div class="operation-top"><span class="operation-tag orange">VIDEO</span><code>convert</code></div><h3><span class="lang-zh">选择容器与质量</span><span class="lang-en">Choose the container</span></h3><p><span class="lang-zh">兼容时 remux，必要时转码，报告 codec 与质量损失。</span><span class="lang-en">Remux when compatible, transcode when needed, and report codec tradeoffs.</span></p><code class="operation-command">media convert input.mkv --to mp4</code></article>
+          <article class="operation-card" data-search="image png jpg webp watermark scale 图片 水印"><div class="operation-top"><span class="operation-tag lime">IMAGE</span><code>image</code></div><h3><span class="lang-zh">图片也走同一条契约</span><span class="lang-en">Images use the same contract</span></h3><p><span class="lang-zh">格式、尺寸、旋转、水印与质量参数都可 dry-run。</span><span class="lang-en">Format, size, rotation, watermark, and quality can all be dry-run.</span></p><code class="operation-command">media image poster.png --to webp</code></article>
+          <article class="operation-card" data-search="gif animated palette fps 动图 帧率"><div class="operation-top"><span class="operation-tag lime">ANIMATE</span><code>gif</code></div><h3><span class="lang-zh">从视频生成动图</span><span class="lang-en">Turn clips into GIFs</span></h3><p><span class="lang-zh">控制时长、帧率和宽度，减少色带与意外体积。</span><span class="lang-en">Control duration, frame rate, and width to keep color and size predictable.</span></p><code class="operation-command">media gif input.mp4 --duration 3</code></article>
+          <article class="operation-card" data-search="edit crop rotate speed volume filter subtitle 编辑 裁剪 字幕"><div class="operation-top"><span class="operation-tag violet">EDIT</span><code>edit</code></div><h3><span class="lang-zh">把滤镜变成参数</span><span class="lang-en">Turn filters into parameters</span></h3><p><span class="lang-zh">裁剪、旋转、变速、音量、命名滤镜和字幕烧录。</span><span class="lang-en">Crop, rotate, speed, volume, named filters, and burned-in subtitles.</span></p><code class="operation-command">media edit input.mp4 --speed 1.25</code></article>
+          <article class="operation-card" data-search="merge concat mux mix join 合并 混流 混音"><div class="operation-top"><span class="operation-tag cyan">JOIN</span><code>merge</code></div><h3><span class="lang-zh">连接、混流或混音</span><span class="lang-en">Join, mux, or mix</span></h3><p><span class="lang-zh">concat、video-plus-audio mux，以及双音轨 mix。</span><span class="lang-en">Concat, video-plus-audio mux, and two-track audio mix.</span></p><code class="operation-command">media merge a.mp4 b.mp4 --mode concat</code></article>
+          <article class="operation-card" data-search="repair broken corrupt timestamps 修复 损坏 时间戳"><div class="operation-top"><span class="operation-tag red">RECOVER</span><code>repair</code></div><h3><span class="lang-zh">给坏文件下一步</span><span class="lang-en">Give broken files a next step</span></h3><p><span class="lang-zh">时间戳修复、容忍 remux，或显式选择 re-encode。</span><span class="lang-en">Repair timestamps, tolerate a remux, or choose re-encode explicitly.</span></p><code class="operation-command">media repair damaged.mp4</code></article>
+          <article class="operation-card" data-search="audio mp3 flac wav opus bitrate 音频 码率"><div class="operation-top"><span class="operation-tag orange">AUDIO</span><code>audio</code></div><h3><span class="lang-zh">音频转换不是黑盒</span><span class="lang-en">Audio conversion is explicit</span></h3><p><span class="lang-zh">码率、采样率、声道、音量和时间范围全部可见。</span><span class="lang-en">Bitrate, sample rate, channels, volume, and time range stay visible.</span></p><code class="operation-command">media audio input.mp4 --format flac</code></article>
+          <article class="operation-card" data-search="disc dvd cd iso optical 光盘"><div class="operation-top"><span class="operation-tag slate">DISK</span><code>disc</code></div><h3><span class="lang-zh">能力边界写出来</span><span class="lang-en">Write the boundary down</span></h3><p><span class="lang-zh">DVD、CD、ISO 走 bridge，权限和 DRM 以 warning 呈现。</span><span class="lang-en">DVD, CD, and ISO use a bridge, with permissions and DRM surfaced as warnings.</span></p><code class="operation-command">media disc DVD --action create-iso</code></article>
         </div>
-        <p id="empty-operations" class="empty-state" hidden>没有匹配的 operation。试试 <code>image</code>、<code>merge</code> 或 <code>repair</code>。</p>
+        <p id="empty-operations" class="empty-state" hidden><span class="lang-zh">没有匹配的 operation。试试 image、merge 或 repair。</span><span class="lang-en">No operation matches. Try image, merge, or repair.</span></p>
       </section>
 
-      <section class="safety shell section-rule">
-        <div class="safety-banner">
-          <div><p class="eyebrow">05 / SAFETY DEFAULTS</p><h2>可预测，才适合委托给 Agent。</h2></div>
-          <div class="safety-list"><span><b>01</b> 不修改源文件</span><span><b>02</b> 不隐式覆盖</span><span><b>03</b> 输出后自动验证</span><span><b>04</b> 失败带 code 与 suggestions</span></div>
+      <section class="section shell safety-section">
+        <div class="safety-panel">
+          <div class="safety-copy">
+            <span class="note-number">06</span>
+            <h2><span class="lang-zh">可预测，才适合委托给 Agent。</span><span class="lang-en">Predictable enough to delegate.</span></h2>
+            <p><span class="lang-zh">每个默认值都服务于可回滚、可解释和可复核的执行。</span><span class="lang-en">Every default is designed for execution that can be explained, reviewed, and safely retried.</span></p>
+          </div>
+          <div class="safety-list">
+            <span><b>01</b><span class="lang-zh">不修改源文件</span><span class="lang-en">Sources stay untouched</span></span>
+            <span><b>02</b><span class="lang-zh">不隐式覆盖</span><span class="lang-en">No implicit overwrite</span></span>
+            <span><b>03</b><span class="lang-zh">输出后自动验证</span><span class="lang-en">Verify after output</span></span>
+            <span><b>04</b><span class="lang-zh">错误带 code 与建议</span><span class="lang-en">Errors include codes and suggestions</span></span>
+          </div>
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <div class="shell footer-inner"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>MediaForge</span></a><span>Agent-native media tooling · MIT License</span><a href="https://github.com/Lhy723/mediaforge" target="_blank" rel="noreferrer">github.com/Lhy723/mediaforge ↗</a></div>
+      <div class="shell footer-inner">
+        <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>MediaForge</span></a>
+        <span><span class="lang-zh">面向 Agent 的媒体工具 · MIT License</span><span class="lang-en">Agent-native media tooling · MIT License</span></span>
+        <a href="https://github.com/Lhy723/mediaforge" target="_blank" rel="noreferrer">github.com/Lhy723/mediaforge <span aria-hidden="true">↗</span></a>
+      </div>
     </footer>
   </body>
 </html>
